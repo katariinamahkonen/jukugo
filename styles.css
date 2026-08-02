@@ -135,3 +135,30 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
 #ver { text-align: center; font-size: 10px; color: #4b5280; padding: 0 0 6px; letter-spacing: .5px; flex-shrink: 0; }
 /* DEV: reset button in header (remove before publishing) */
 #resetBtn { background: var(--panel); border: 0; color: var(--muted); font-size: 16px; line-height: 1; padding: 6px 9px; border-radius: 8px; }
+
+/* ---- narrow phones: scale things down so everything fits ---- */
+@media (max-width: 412px) {
+  #topbar { gap: 8px; padding: 10px 12px 6px; }
+  .brand { font-size: 13px; }
+  .mode { font-size: 12px; padding: 6px 10px; }
+  .fi { font-size: 11px; }
+  #hud { padding: 4px 12px 8px; }
+  .statbox { padding: 7px 2px 5px; border-radius: 10px; }
+  .statnum { font-size: 20px; }
+  .statlabel { font-size: 8px; }
+  #view { padding: 6px 12px 12px; }
+  .card { min-height: 200px; padding: 18px 14px; border-radius: 18px; }
+  .big { font-size: 46px; }
+  .reading { font-size: 20px; }
+  .reading.big { font-size: 26px; }
+  .gloss .en { font-size: 16px; }
+  .actions { min-height: 156px; margin-top: 12px; gap: 8px; }
+  .actions button { padding: 13px 8px; font-size: 15px; }
+}
+@media (max-width: 360px) {
+  .modes { padding: 2px; }
+  .mode { font-size: 11px; padding: 6px 8px; }
+  .statnum { font-size: 18px; }
+  .big { font-size: 40px; }
+  .actions button { padding: 12px 8px; font-size: 14px; }
+}
