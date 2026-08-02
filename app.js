@@ -776,6 +776,47 @@
     return e;
   }
 
+  // ---- backup & restore -----------------------------------------------------
+  // Progress lives only in this browser's localStorage, so give the user a way
+  // to save it to a file and move/restore it. The file bundles the progress
+  // blob plus the cached example sentences.
+  function exportBackup() {
+    var payload = { app: "jukugo", type: "backup", version: 1,
+      exportedAt: new Date().toISOString(), data: null, examples: null };
+    try { payload.data = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+    try { payload.examples = JSON.parse(localStorage.getItem(EXAMPLES_KEY)); } catch (e) {}
+    if (!payload.data) { alert("No progress to export yet."); return; }
+    var d = new Date();
+    var p2 = function (n) { return (n < 10 ? "0" : "") + n; };
+    var name = "jukugo-backup-" + d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()) + ".json";
+    var blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
+  }
+
+  function importBackup(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var obj;
+      try { obj = JSON.parse(reader.result); } catch (e) { alert("Not a valid backup file."); return; }
+      // accept either a wrapped backup or a bare progress blob
+      var appBlob = (obj && obj.data) ? obj.data : obj;
+      if (!appBlob || typeof appBlob !== "object" || !appBlob.schemaVersion) {
+        alert("This doesn't look like a Jukugo backup."); return;
+      }
+      if (!confirm("Restore this backup? It will REPLACE the progress currently on this device.")) return;
+      try { localStorage.setItem(KEY, JSON.stringify(appBlob)); } catch (e) {}
+      if (obj && obj.examples) {
+        try { localStorage.setItem(EXAMPLES_KEY, JSON.stringify(obj.examples)); } catch (e) {}
+      }
+      location.reload();
+    };
+    reader.readAsText(file);
+  }
+
   // ---- progress view (single, shared; the per-stage counts live in the HUD)
   function renderProgress(view) {
     view.innerHTML = "";
@@ -822,6 +863,23 @@
       "Your key is stored only on this device and sent directly to OpenAI (never to any other server). " +
       "Needed for the \u201cGet example sentence\u201d button when running from a file on your phone. " +
       "Default model: " + OPENAI_MODEL_DEFAULT + "."));
+
+    // --- backup & restore
+    view.appendChild(h("h3", null, "Backup & restore"));
+    var bkRow = h("div", "btnrow");
+    var expBtn = h("button", "linkbtn", "Export backup");
+    expBtn.onclick = exportBackup;
+    var impBtn = h("button", "linkbtn", "Restore backup");
+    var fileIn = h("input"); fileIn.type = "file"; fileIn.accept = "application/json,.json";
+    fileIn.style.display = "none";
+    fileIn.onchange = function () { if (fileIn.files && fileIn.files[0]) importBackup(fileIn.files[0]); };
+    impBtn.onclick = function () { fileIn.click(); };
+    bkRow.appendChild(expBtn); bkRow.appendChild(impBtn); bkRow.appendChild(fileIn);
+    view.appendChild(bkRow);
+    view.appendChild(h("div", "sethint",
+      "Export saves ALL your progress to a file you can keep or move to another device. " +
+      "Restore replaces the progress on this device with a backup file. " +
+      "Do this regularly \u2014 progress is stored only in this browser and can be lost if its data is cleared."));
   }
 
   // The five stage series and their colours (must match the HUD / styles.css).
@@ -922,6 +980,9 @@
     var v = $("ver"); if (v) v.textContent = "v" + VERSION;
     load();
     loadExamples();
+    // Ask the browser to keep our data (reduces the chance of eviction). Granted
+    // more readily once the app is installed to the home screen. Best-effort.
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
     balls.recognition.initIfEmpty();
     balls.production.initIfEmpty();
     save();
