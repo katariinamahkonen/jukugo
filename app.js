@@ -994,12 +994,8 @@
     fi.checked = settings.showFinnish;
     fi.onchange = function () { settings.showFinnish = fi.checked; save(); render(); };
 
-    var reset = $("resetBtn");   // DEV: remove before publishing
-    if (reset) reset.onclick = function () {
-      if (!confirm("Reset ALL progress for both modes?")) return;
-      try { localStorage.removeItem(KEY); } catch (e) {}
-      location.reload();
-    };
+    var bk = $("backupBtn");
+    if (bk) bk.onclick = exportBackup;
 
     render();
   }
