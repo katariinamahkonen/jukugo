@@ -738,10 +738,31 @@
     return b;
   }
 
+  var GLOSS_SHOWN = 3;  // collapse translations beyond this many
+  // Render a translation string, showing only the first few senses with a
+  // "+N more" toggle when there are many (keeps the answer box compact).
+  function glossLine(text, cls) {
+    var parts = text.split(/\s*[;,]\s*/).filter(Boolean);
+    var el = h("div", cls);
+    if (parts.length <= GLOSS_SHOWN) { el.textContent = parts.join(", "); return el; }
+    var head = parts.slice(0, GLOSS_SHOWN).join(", ");
+    var span = h("span", null, head + " ");
+    var btn = h("button", "morebtn", "+" + (parts.length - GLOSS_SHOWN) + " more");
+    var open = false;
+    btn.onclick = function (e) {
+      e.stopPropagation();
+      open = !open;
+      span.textContent = (open ? parts.join(", ") : head) + " ";
+      btn.textContent = open ? "less" : "+" + (parts.length - GLOSS_SHOWN) + " more";
+    };
+    el.appendChild(span);
+    el.appendChild(btn);
+    return el;
+  }
   function glossEls(w) {
     var box = h("div", "gloss");
-    if (w.e) box.appendChild(h("div", "en", w.e));
-    if (settings.showFinnish && w.f) box.appendChild(h("div", "fi", w.f));
+    if (w.e) box.appendChild(glossLine(w.e, "en"));
+    if (settings.showFinnish && w.f) box.appendChild(glossLine(w.f, "fi"));
     return box;
   }
 

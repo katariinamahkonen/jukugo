@@ -78,6 +78,8 @@ body {
 .gloss { display: flex; flex-direction: column; gap: 4px; }
 .gloss .en { font-size: 18px; }
 .gloss .fi { font-size: 15px; color: var(--muted); font-style: italic; }
+.morebtn { border: 0; background: transparent; color: var(--accent); font: inherit;
+  font-size: 13px; font-weight: 700; padding: 0; cursor: pointer; white-space: nowrap; }
 .empty { text-align: center; color: var(--muted); }
 
 /* actions — stacked vertically, full width; fixed height so the card doesn't jump on flip */
