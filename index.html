@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0f1220" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Jukugo</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">Jukugo</div>
+    <div class="modes">
+      <button id="modeRead" class="mode on">Read</button>
+      <button id="modeWrite" class="mode">Write</button>
+      <button id="modeProgress" class="mode">Progress</button>
+    </div>
+    <label class="fi"><input type="checkbox" id="fiToggle" /> FI</label>
+    <!-- DEV: remove reset button before publishing -->
+    <button id="resetBtn" title="reset all progress">⟳</button>
+  </header>
+
+  <section id="hud">
+    <div class="stats">
+      <div class="statbox st-rl">
+        <div class="statnum" id="sRL">0</div>
+        <div class="statlabel">read learning</div>
+      </div>
+      <div class="statbox st-rd">
+        <div class="statnum" id="sRD">0</div>
+        <div class="statlabel">read learned</div>
+      </div>
+      <div class="statbox st-rm">
+        <div class="statnum" id="sRM">0</div>
+        <div class="statlabel">read mastered</div>
+      </div>
+      <div class="statbox st-wd">
+        <div class="statnum" id="sWD">0</div>
+        <div class="statlabel">write learned</div>
+      </div>
+      <div class="statbox st-wm">
+        <div class="statnum" id="sWM">0</div>
+        <div class="statlabel">write mastered</div>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="chip" id="lvl">L1</div>
+    </div>
+  </section>
+
+  <main id="view"></main>
+
+  <div id="ver">v?</div>
+
+  <!-- classic scripts so it also works from file:// (no modules) -->
+  <script src="config.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Register the service worker for offline use (ignored on file://).
+    if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>

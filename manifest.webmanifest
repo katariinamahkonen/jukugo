@@ -1,0 +1,14 @@
+{
+  "name": "Jukugo",
+  "short_name": "Jukugo",
+  "description": "Learn common Japanese vocabulary: read then write words, stage by stage.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1220",
+  "theme_color": "#0f1220",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
