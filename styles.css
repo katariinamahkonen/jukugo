@@ -58,12 +58,15 @@ body {
 /* main / card — the only scrollable region */
 #view { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
   display: flex; flex-direction: column;
-  justify-content: center; justify-content: safe center;   /* center if it fits, else scroll from top */
+  justify-content: flex-start;
   padding: 8px 16px 16px; }
 .card {
   background: linear-gradient(180deg, var(--panel2), var(--panel));
   border: 1px solid #2a3157; border-radius: 20px;
-  padding: 22px 18px; min-height: 240px;
+  padding: 22px 18px; min-height: 0;
+  /* fill the space between top bar and the buttons, but never shrink so the
+     word stays readable; when an example is added it just scrolls below. */
+  flex: 1 0 auto;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   box-shadow: 0 18px 40px rgba(0,0,0,.35);
 }
@@ -78,7 +81,7 @@ body {
 .empty { text-align: center; color: var(--muted); }
 
 /* actions — stacked vertically, full width; fixed height so the card doesn't jump on flip */
-.actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; width: 100%; min-height: 178px; }
+.actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; width: 100%; min-height: 178px; flex-shrink: 0; }
 .actions button { width: 100%; border: 0; border-radius: 14px; padding: 16px 10px; font-size: 16px; font-weight: 700; color: #0b0e1c; }
 /* the lone Show-answer button fills the whole action area (= three grade buttons) */
 .actions .show { flex: 1; }
@@ -90,7 +93,7 @@ body {
 button:active { transform: translateY(1px); filter: brightness(.95); }
 
 /* example sentence (Read mode) */
-.examplewrap { width: 100%; margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.examplewrap { width: 100%; margin-top: 10px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
 .exbtn { width: 100%; border: 0; border-radius: 14px; padding: 14px 10px; font-size: 15px;
   font-weight: 700; background: var(--panel2); color: var(--ink); border: 1px solid #2a3157; }
 .exbtn:disabled { opacity: .6; }
@@ -147,7 +150,7 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
   .statnum { font-size: 20px; }
   .statlabel { font-size: 8px; }
   #view { padding: 6px 12px 12px; }
-  .card { min-height: 200px; padding: 18px 14px; border-radius: 18px; }
+  .card { min-height: 0; padding: 18px 14px; border-radius: 18px; }
   .big { font-size: 46px; }
   .reading { font-size: 20px; }
   .reading.big { font-size: 26px; }
