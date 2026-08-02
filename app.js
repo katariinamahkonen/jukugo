@@ -873,7 +873,21 @@
     var fileIn = h("input"); fileIn.type = "file"; fileIn.accept = "application/json,.json";
     fileIn.style.display = "none";
     fileIn.onchange = function () { if (fileIn.files && fileIn.files[0]) importBackup(fileIn.files[0]); };
-    impBtn.onclick = function () { fileIn.click(); };
+    impBtn.onclick = function () {
+      // Where supported (Chromium), open the picker in the Downloads folder,
+      // since that's where the exported backup lands by default. Elsewhere fall
+      // back to the normal file input (browser chooses the starting folder).
+      if (window.showOpenFilePicker) {
+        window.showOpenFilePicker({
+          startIn: "downloads", multiple: false,
+          types: [{ description: "Jukugo backup", accept: { "application/json": [".json"] } }]
+        }).then(function (hs) { return hs[0].getFile(); })
+          .then(function (f) { importBackup(f); })
+          .catch(function () {});   // user cancelled
+      } else {
+        fileIn.click();
+      }
+    };
     bkRow.appendChild(expBtn); bkRow.appendChild(impBtn); bkRow.appendChild(fileIn);
     view.appendChild(bkRow);
     view.appendChild(h("div", "sethint",
@@ -993,9 +1007,6 @@
     var fi = $("fiToggle");
     fi.checked = settings.showFinnish;
     fi.onchange = function () { settings.showFinnish = fi.checked; save(); render(); };
-
-    var bk = $("backupBtn");
-    if (bk) bk.onclick = exportBackup;
 
     render();
   }
