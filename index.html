@@ -64,8 +64,19 @@
   <script>
     // Register the service worker for offline use (ignored on file://).
     if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+      // When a freshly-installed worker takes control, reload once so the new
+      // HTML/CSS/JS is shown immediately (no manual double-reload needed).
+      var hadController = !!navigator.serviceWorker.controller;
+      var reloading = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (reloading || !hadController) return;  // skip the very first install
+        reloading = true;
+        location.reload();
+      });
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("sw.js").catch(function () {});
+        navigator.serviceWorker.register("sw.js").then(function (reg) {
+          reg.update();  // proactively check for a new version on each launch
+        }).catch(function () {});
       });
     }
   </script>
