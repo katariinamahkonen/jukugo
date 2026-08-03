@@ -445,8 +445,11 @@
   //   | learned_writing | mastered_writing
   function stageCounts() {
     var c = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, wm: 0 };
-    states.forEach(function (st) {
-      if (st === R_LEARNING) c.rl++;
+    states.forEach(function (st, idx) {
+      // "read learning" = words in the reading pool that have actually been
+      // quizzed at least once. Unqueried pool words (lastQuiz === 0) are just
+      // capacity under the max cap and shouldn't inflate the count.
+      if (st === R_LEARNING) { if ((lastQuiz.get(idx) || 0) !== 0) c.rl++; }
       else if (st === R_LEARNED) c.rd++;
       else if (st === R_MASTERED) c.rm++;
       else if (st === W_LEARNING) c.wl++;
