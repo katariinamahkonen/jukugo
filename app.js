@@ -27,6 +27,16 @@
     if (!n) n = POOL_TARGET_DEFAULT;
     return Math.max(POOL_MIN, Math.min(POOL_MAX, n));
   }
+  // Introduce a NEW word only while you're in an active session; if your most
+  // recent quiz is older than this gap, review an existing learning word first
+  // (a "warm-up on return"). User-configurable (Settings), default 3h.
+  var ACQUIRE_GAP_DEFAULT_H = 3, ACQUIRE_GAP_MIN_H = 1, ACQUIRE_GAP_MAX_H = 48;
+  function acquireGapHours() {
+    var hh = settings.acquireGapHours;
+    if (hh == null) hh = ACQUIRE_GAP_DEFAULT_H;
+    return Math.max(ACQUIRE_GAP_MIN_H, Math.min(ACQUIRE_GAP_MAX_H, hh | 0));
+  }
+  function acquireGapMs() { return acquireGapHours() * 3600 * 1000; }
   var MAX_LEVEL = 8;   // recomputed from data below
   var RETENTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't re-review a word within 24h
   // Words with BCCWJ rank worse than this (or unranked) are "rare": they are
@@ -224,24 +234,39 @@
     return cands;
   };
 
-  Ball.prototype.refill = function () {
-    var target = poolTarget(this.reading);
-    if (this.reading) {
-      this.maybeUnlock();
-      var guard = 0;
-      while (this.learning.size < target && guard++ < target + 5) {
-        var idx = this.pickNextWord();
-        if (idx == null) { this.maybeUnlock(); idx = this.pickNextWord(); }
-        if (idx == null) break;
-        this.addLearning(idx);
-      }
-    } else {
-      if (this.learning.size >= target) return;
-      var cands = this.writingCandidates();
-      for (var i = 0; i < cands.length && this.learning.size < target; i++) {
-        this.addLearning(cands[i]);            // r_mastered -> w_learning
-      }
+  Ball.prototype.nextWritingCandidate = function () {
+    var c = this.writingCandidates();
+    return c.length ? c[0] : null;
+  };
+
+  // Choose the acquisition-slot word. The learning pool now holds ONLY words
+  // that have actually been quizzed (no pre-filled buffer). Decide between
+  // introducing a brand-new word and re-drilling an existing learning word:
+  //   introduce NEW  when the pool is below its cap AND you've quizzed recently
+  //                  (within the activity gap) -- i.e. an active session;
+  //   otherwise      re-drill the oldest (least-recently-seen) learning word,
+  //                  which also covers "pool full" and "returning after a gap".
+  Ball.prototype.chooseAcquire = function () {
+    if (this.reading) this.maybeUnlock();
+    var target = poolTarget(this.reading), self = this;
+    var newest = 0, oldest = null, oldestT = INF, size = 0;
+    this.learning.forEach(function (idx) {
+      size++;
+      var t = self.last.get(idx) || 0;
+      if (t > newest) newest = t;
+      if (t < oldestT) { oldestT = t; oldest = idx; }
+    });
+    var introduceNew = (size < target) &&
+      (size === 0 || (Date.now() - newest) <= acquireGapMs());
+    if (introduceNew) {
+      var nw = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
+      if (nw != null) { this.addLearning(nw); return nw; }
     }
+    if (oldest != null) return oldest;
+    // pool empty and nothing to review: introduce whatever is next, if any
+    var nw2 = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
+    if (nw2 != null) { this.addLearning(nw2); return nw2; }
+    return null;
   };
 
   Ball.prototype.rebuildDerived = function () {
@@ -265,24 +290,13 @@
   };
 
   Ball.prototype.initIfEmpty = function () {
-    if (this.ballSize === 0 && this.learning.size === 0) {
-      if (this.reading) {
-        this.addLearning(SEED);        // seed 一 first (\u00a78 bootstrap)
-        lastQuiz.set(SEED, -1);        // quizzed before all others
-      }
-      this.refill();                   // writing: pulls read-mastered candidates (if any)
+    if (this.reading && this.ballSize === 0 && this.learning.size === 0) {
+      this.addLearning(SEED);          // seed 一 first (\u00a78 bootstrap)
+      lastQuiz.set(SEED, -1);          // present before all others (as a new word)
     }
+    // writing needs no seeding: chooseAcquire pulls read-mastered candidates.
   };
 
-  // pick a learning word to acquire: least-recently-quizzed (§10)
-  Ball.prototype.pickAcquire = function () {
-    var best = null, bestT = INF, self = this;
-    this.learning.forEach(function (idx) {
-      var t = self.last.has(idx) ? self.last.get(idx) : 0;
-      if (t < bestT) { bestT = t; best = idx; }
-    });
-    return best;
-  };
   // 2 distinct random learned (not mastered) words, excluding a set.
   // Skip any word quizzed within the last 24h (§10 cooldown) so the early game
   // doesn't keep re-asking the same freshly-learned words.
@@ -303,7 +317,7 @@
 
   // ----------------------------------------------------------- persistence
   var KEY = "ballGame.v1";
-  var settings = { showFinnish: true, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT };
+  var settings = { showFinnish: true, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT, acquireGapHours: ACQUIRE_GAP_DEFAULT_H };
   // Single progress structure: end-of-day snapshot of each stage's count.
   var progress = { dailyStages: {} };   // { 'YYYY-MM-DD': {rl,rd,rm,wl,wd,wm} }
   var unlockedLevel = 1;                 // reading curriculum level (writing has none)
@@ -315,6 +329,8 @@
       settings.poolTargetRead = settings.poolTarget || POOL_TARGET_DEFAULT;
     if (settings.poolTargetWrite == null)
       settings.poolTargetWrite = settings.poolTarget || POOL_TARGET_DEFAULT;
+    if (settings.acquireGapHours == null)
+      settings.acquireGapHours = ACQUIRE_GAP_DEFAULT_H;
     delete settings.poolTarget;
   }
   function rebuildAll() {
@@ -408,9 +424,12 @@
       roundExclude.add(r);
       queue.push({ idx: r, kind: "retention" });
     }
-    var a = b.pickAcquire();
-    if (a == null) { b.refill(); a = b.pickAcquire(); }
-    if (a != null) queue.push({ idx: a, kind: "acquisition" });
+    var a = b.chooseAcquire();
+    if (a != null) {
+      // "new word" = presented for the very first time (never graded yet).
+      var isNew = (b.last.get(a) || 0) <= 0;
+      queue.push({ idx: a, kind: "acquisition", isNew: isNew });
+    }
   }
 
   function nextCard() {
@@ -425,7 +444,6 @@
     else if (g === "good") b.enterBall(idx, "learned");
     else b.toLearning(idx);            // hard
     b.last.set(idx, Date.now());
-    if ((g === "know" || g === "good") && card.kind === "acquisition") b.refill();
     recordDailyStages();               // snapshot per-stage counts for the curve
     save();
   }
@@ -498,6 +516,7 @@
     }
     var w = WORDS[current.idx];
     var card = h("div", "card");
+    if (current.isNew) card.appendChild(h("div", "newtag", "new word"));
 
     var front = h("div", "front");
     if (activeMode === "recognition") {
@@ -841,8 +860,13 @@
     view.appendChild(poolRow("Max words learning (read)", true));
     view.appendChild(poolRow("Max words learning (write)", false));
     view.appendChild(h("div", "sethint",
-      "How many cards rotate in acquisition (max " + POOL_MAX + ", min " + POOL_MIN +
+      "How many words you can be actively learning at once (max " + POOL_MAX + ", min " + POOL_MIN +
       ") before reaching the learned level. Set separately for reading and writing."));
+    view.appendChild(gapRow());
+    view.appendChild(h("div", "sethint",
+      "A new word is introduced only while you're actively studying (last quiz within this many hours) " +
+      "and you're below the max above. After a longer break, existing words are reviewed first. " +
+      "Range " + ACQUIRE_GAP_MIN_H + "\u2013" + ACQUIRE_GAP_MAX_H + " h."));
 
     // --- settings: OpenAI key/model for the "Get example sentence" button
     view.appendChild(h("h3", null, "Example sentences (OpenAI)"));
@@ -932,8 +956,27 @@
     if (n === settings[key]) return;
     settings[key] = n;
     var b = reading ? balls.recognition : balls.production;
-    b.trimLearning(n);   // shrink surplus (no-op when increasing)
-    b.refill();          // top up (no-op when decreasing)
+    b.trimLearning(n);   // shrink surplus (no-op when increasing; new words flow in over time)
+    save();
+    render();
+  }
+  function gapRow() {
+    var row = h("div", "setrow");
+    row.appendChild(h("span", "setlbl", "New words: active within (hours)"));
+    var ctl = h("div", "stepper");
+    var minus = h("button", "stepbtn", "\u2212");
+    var val = h("span", "setval", "" + acquireGapHours());
+    var plus = h("button", "stepbtn", "+");
+    minus.onclick = function () { setAcquireGap(acquireGapHours() - 1); };
+    plus.onclick = function () { setAcquireGap(acquireGapHours() + 1); };
+    ctl.appendChild(minus); ctl.appendChild(val); ctl.appendChild(plus);
+    row.appendChild(ctl);
+    return row;
+  }
+  function setAcquireGap(n) {
+    n = Math.max(ACQUIRE_GAP_MIN_H, Math.min(ACQUIRE_GAP_MAX_H, n | 0));
+    if (n === acquireGapHours()) return;
+    settings.acquireGapHours = n;
     save();
     render();
   }
