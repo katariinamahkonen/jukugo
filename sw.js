@@ -1,6 +1,6 @@
 /* Jukugo service worker: precache the app shell so it works fully offline.
  * Bump CACHE whenever any cached file changes (forces clients to refresh). */
-var CACHE = "jukugo-2026-08-03.3";
+var CACHE = "jukugo-2026-08-03.4";
 var ASSETS = [
   "./",
   "./index.html",

@@ -239,31 +239,32 @@
     return c.length ? c[0] : null;
   };
 
-  // Choose the acquisition-slot word. The learning pool now holds ONLY words
-  // that have actually been quizzed (no pre-filled buffer). Decide between
-  // introducing a brand-new word and re-drilling an existing learning word:
-  //   introduce NEW  when the pool is below its cap AND you've quizzed recently
-  //                  (within the activity gap) -- i.e. an active session;
-  //   otherwise      re-drill the oldest (least-recently-seen) learning word,
-  //                  which also covers "pool full" and "returning after a gap".
+  // Choose the acquisition-slot word. The learning pool holds ONLY words that
+  // have actually been quizzed (no pre-filled buffer). A learning word is "due"
+  // once it hasn't been seen for at least the spacing gap (acquireGapHours).
+  // Priority:
+  //   1) re-drill the most-overdue DUE learning word (before any new word);
+  //   2) else, if below the cap, introduce a brand-new word;
+  //   3) else (pool full, nothing due), review the oldest learning word.
   Ball.prototype.chooseAcquire = function () {
     if (this.reading) this.maybeUnlock();
     var target = poolTarget(this.reading), self = this;
-    var newest = 0, oldest = null, oldestT = INF, size = 0;
+    var oldest = null, oldestT = INF, size = 0;
     this.learning.forEach(function (idx) {
       size++;
       var t = self.last.get(idx) || 0;
-      if (t > newest) newest = t;
       if (t < oldestT) { oldestT = t; oldest = idx; }
     });
-    var introduceNew = (size < target) &&
-      (size === 0 || (Date.now() - newest) <= acquireGapMs());
-    if (introduceNew) {
+    // 1) a learning word overdue by >= the spacing gap: review it first
+    if (oldest != null && (Date.now() - oldestT) >= acquireGapMs()) return oldest;
+    // 2) nothing due and room under the cap: introduce a new word
+    if (size < target) {
       var nw = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
       if (nw != null) { this.addLearning(nw); return nw; }
     }
+    // 3) pool full (or no new word available): review the oldest learning word
     if (oldest != null) return oldest;
-    // pool empty and nothing to review: introduce whatever is next, if any
+    // 4) empty pool, nothing to review: introduce whatever is next, if any
     var nw2 = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
     if (nw2 != null) { this.addLearning(nw2); return nw2; }
     return null;
@@ -864,9 +865,9 @@
       ") before reaching the learned level. Set separately for reading and writing."));
     view.appendChild(gapRow());
     view.appendChild(h("div", "sethint",
-      "A new word is introduced only while you're actively studying (last quiz within this many hours) " +
-      "and you're below the max above. After a longer break, existing words are reviewed first. " +
-      "Range " + ACQUIRE_GAP_MIN_H + "\u2013" + ACQUIRE_GAP_MAX_H + " h."));
+      "Minimum spacing before a word you're learning is shown again. A word that hasn't been seen " +
+      "for this long is reviewed before any new word; new words are introduced only when nothing is " +
+      "due and you're below the max above. Range " + ACQUIRE_GAP_MIN_H + "\u2013" + ACQUIRE_GAP_MAX_H + " h."));
 
     // --- settings: OpenAI key/model for the "Get example sentence" button
     view.appendChild(h("h3", null, "Example sentences (OpenAI)"));
@@ -962,7 +963,7 @@
   }
   function gapRow() {
     var row = h("div", "setrow");
-    row.appendChild(h("span", "setlbl", "New words: active within (hours)"));
+    row.appendChild(h("span", "setlbl", "Repeat a learning word after (hours)"));
     var ctl = h("div", "stepper");
     var minus = h("button", "stepbtn", "\u2212");
     var val = h("span", "setval", "" + acquireGapHours());

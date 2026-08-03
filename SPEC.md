@@ -64,16 +64,20 @@ The game runs endless **rounds**. Each round = **2 retention + 1 acquisition**
   words aren't re-asked immediately. Early on there may be 0–1 available.
 
 ### Acquisition (×1) — `chooseAcquire()`
-Decides between introducing a brand-new word and re-drilling an existing
-learning word:
+A learning word is **"due"** once it hasn't been seen for at least the spacing
+gap (`acquireGapHours`, default 3 h, configurable). Priority:
 
-- **Introduce a NEW word** when the pool is **below the cap** *and* your most
-  recent quiz was within the **activity gap** (`acquireGapHours`, default 3 h) —
-  i.e. you're in an active session.
-  - Reading: the new word is chosen by the priority picker (§6).
-  - Writing: the next writing candidate (oldest-mastered `r_mastered` word).
-- **Otherwise re-drill** the oldest (least-recently-seen) learning word. This
-  covers both "pool is full" and "returning after a break" (warm-up on return).
+1. **Re-drill the most-overdue due learning word** — before introducing anything
+   new. (The seed 一 counts as due immediately on first run.)
+2. **Else, if below the cap, introduce a NEW word.**
+   - Reading: chosen by the priority picker (§6).
+   - Writing: the next writing candidate (oldest-mastered `r_mastered` word).
+3. **Else (pool full, nothing due), review the oldest** learning word.
+
+So new words appear only while no learning word is due and you're under the cap;
+struggling words (graded "Not yet") reliably return one spacing-gap after they
+were last seen. (Note: words graded "Pretty good" leave the learning pool into
+`learned` and are then governed by the 24 h retention cooldown, not this gap.)
 
 A word shown for the very first time (never graded) is flagged **`new word`**
 and shows a badge on the card.
@@ -114,8 +118,8 @@ separate levels; it follows reading mastery.
 ## 9. Settings
 
 - **Max words learning (read / write)** — the per-phase pool caps (§4).
-- **New words: active within (hours)** — the acquisition activity gap (§5),
-  1–48 h, default 3.
+- **Repeat a learning word after (hours)** — the minimum spacing before a
+  learning word is shown again / the "due" threshold (§5), 1–48 h, default 3.
 - **Show Finnish (FI)** — toggle Finnish glosses.
 - **OpenAI key / model** — for the "Get example sentence" button (§12).
 
