@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-03.7";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-03.8";   // bump on each change; shown in UI + console
   var D = window.__BALL_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -43,14 +43,30 @@
   // unlocked kanji are done, so rare idioms don't appear early. [decision]
   var RARE_RANK = 30000;
 
+  // Cards hidden from learners (beginner-facing cleanup at level 1): secondary
+  // single-kanji ON-readings whose basic KUN card is kept (the ON reading still
+  // shows up inside compounds), redundant grammar-variant spellings, and
+  // duplicate-spelling second readings. Keyed by surface\u0001reading. Hidden
+  // words are never introduced as new and are excluded from counts/retention;
+  // array indices are left untouched so saved progress needs no migration.
+  var EXCLUDE = new Set([
+    "\u4e0a\u0001\u3058\u3087\u3046", "\u4e00\u0001\u3072\u3068", "\u4e0b\u0001\u3082\u3068",
+    "\u4e2d\u0001\u3061\u3085\u3046", "\u529b\u0001\u308a\u3087\u304f", "\u65e5\u0001\u306b\u3061",
+    "\u5b66\u0001\u304c\u304f", "\u5927\u0001\u3060\u3044", "\u5c0f\u0001\u3057\u3087\u3046",
+    "\u5927\u304d\u306a\u0001\u304a\u304a\u304d\u306a", "\u5c0f\u3055\u306a\u0001\u3061\u3044\u3055\u306a",
+    "\u4e00\u65e5\u0001\u3064\u3044\u305f\u3061", "\u5927\u304d\u3055\u0001\u304a\u304a\u304d\u3055",
+    "\u91d1\u0001\u304d\u3093", "\u4eba\u0001\u306b\u3093", "\u5e74\u0001\u306d\u3093"
+  ]);
+
   // --- per-word derived fields + level histogram ---------------------------
-  var levelCount = {};                 // level -> count
+  var levelCount = {};                 // level -> count (excludes hidden cards)
   for (var i = 0; i < N; i++) {
     var w = WORDS[i];
     w._k = Array.from(w.s ? w.k : "");           // kanji as array (cache)
     w._rank = (w.c == null) ? INF : w.c;         // unranked -> Infinity
     w._klen = w.s.length;
-    levelCount[w.l] = (levelCount[w.l] || 0) + 1;
+    w._excluded = EXCLUDE.has(w.s + "\u0001" + w.r);
+    if (!w._excluded) levelCount[w.l] = (levelCount[w.l] || 0) + 1;
     if (w.l > MAX_LEVEL) MAX_LEVEL = w.l;
   }
   function appKey(kc) { return KORDER.hasOwnProperty(kc) ? KORDER[kc] : NON_JOYO; }
@@ -162,6 +178,7 @@
     for (var idx = 0; idx < N; idx++) {
       if (states.has(idx)) continue;          // already started somewhere on the path
       var w = WORDS[idx];
+      if (w._excluded) continue;              // hidden card: never introduce as new
       if (w.l > this.unlocked) continue;
       var conn = 0, newk = 0, minIntro = NON_JOYO * 10;
       for (var j = 0; j < w._k.length; j++) {
@@ -199,6 +216,7 @@
       for (var idx = 0; idx < N; idx++) {
         if (states.has(idx)) continue;
         var w = WORDS[idx];
+        if (w._excluded) continue;
         if (w.l > this.unlocked) continue;
         if (w._rank <= RARE_RANK) { commonLeft = true; break; }
         for (var j = 0; j < w._k.length; j++) { if ((this.count.get(w._k[j]) || 0) === 0) { commonLeft = true; break; } }
@@ -216,7 +234,7 @@
   // until it enters writing).
   Ball.prototype.writingCandidates = function () {
     var cands = [];
-    states.forEach(function (st, idx) { if (st === R_MASTERED) cands.push(idx); });
+    states.forEach(function (st, idx) { if (st === R_MASTERED && !WORDS[idx]._excluded) cands.push(idx); });
     cands.sort(function (a, b) { return (lastQuiz.get(a) || 0) - (lastQuiz.get(b) || 0); });
     return cands;
   };
@@ -262,6 +280,7 @@
     this.count.clear(); this.ballSize = 0;
     var self = this;
     states.forEach(function (st, idx) {
+      if (WORDS[idx]._excluded) return;       // hidden card: ignore any saved state
       if (self.reading) {
         if (st === R_LEARNING) self.learning.add(idx);
         else if (st === R_LEARNED) { self.learned.add(idx); self.ballSize++; self.incKanji(WORDS[idx], +1); }
@@ -291,7 +310,7 @@
   Ball.prototype.pickRetention = function (exclude) {
     var pool = [], now = Date.now(), self = this;
     this.learned.forEach(function (i) {
-      if (exclude.has(i)) return;
+      if (exclude.has(i) || WORDS[i]._excluded) return;
       var t = self.last.has(i) ? self.last.get(i) : 0;
       if (now - t >= RETENTION_COOLDOWN_MS) pool.push(i);
     });
@@ -456,6 +475,7 @@
   function stageCounts() {
     var c = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, wm: 0 };
     states.forEach(function (st, idx) {
+      if (WORDS[idx]._excluded) return;       // hidden card: don't count
       // "read learning" = words in the reading pool that have actually been
       // quizzed at least once. Unqueried pool words (lastQuiz === 0) are just
       // capacity under the max cap and shouldn't inflate the count.
