@@ -11,6 +11,14 @@
   --line: #6ea8fe;
   --violet: #a78bfa;
   --magenta: #ec4faf;
+  /* unified stage ladder (grey -> aqua -> green); button colour = the stage a
+     word lands in for the current mode, so read-mastered is the shared hinge. */
+  --stage-rl: #ced4da;   /* read learning  (grey)      */
+  --stage-rd: #66d9e8;   /* read learned   (light aqua) */
+  --stage-rm: #46afe3;   /* read mastered  (hinge)     */
+  --stage-wd: #12b886;   /* write learned  (teal)      */
+  --stage-wm: #3dbf56;   /* write mastered (green)     */
+  --warm: #d6b231;       /* warm accent for reveal button (balances cool grades) */
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; }
@@ -47,11 +55,11 @@ body {
   margin-top: 4px; text-align: center; line-height: 1.15; }
 /* five stages of the single linear path (§6): reading learning/learned/mastered,
    then writing learned/mastered. mastered_reading folds in learning_writing. */
-.statbox.st-rl .statnum, .stat.st-rl .num { color: var(--good); }     /* yellow */
-.statbox.st-rd .statnum, .stat.st-rd .num { color: var(--know); }     /* green  */
-.statbox.st-rm .statnum, .stat.st-rm .num { color: var(--accent); }   /* blue   */
-.statbox.st-wd .statnum, .stat.st-wd .num { color: var(--violet); }   /* violet */
-.statbox.st-wm .statnum, .stat.st-wm .num { color: var(--magenta); }  /* magenta */
+.statbox.st-rl .statnum, .stat.st-rl .num { color: var(--stage-rl); }  /* grey       */
+.statbox.st-rd .statnum, .stat.st-rd .num { color: var(--stage-rd); }  /* light aqua */
+.statbox.st-rm .statnum, .stat.st-rm .num { color: var(--stage-rm); }  /* aqua/blue  */
+.statbox.st-wd .statnum, .stat.st-wd .num { color: var(--stage-wd); }  /* teal       */
+.statbox.st-wm .statnum, .stat.st-wm .num { color: var(--stage-wm); }  /* green      */
 .meta { display: flex; gap: 6px; }
 .chip { display: inline-block; background: var(--panel); color: var(--muted); border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; width: max-content; }
 
@@ -89,11 +97,17 @@ body {
 .actions button { width: 100%; border: 0; border-radius: 14px; padding: 16px 10px; font-size: 16px; font-weight: 700; color: #0b0e1c; }
 /* the lone Show-answer button fills the whole action area (= three grade buttons) */
 .actions .show { flex: 1; }
-.show { background: var(--accent); color: #0b0e1c; }
+.show { background: var(--warm); color: #0b0e1c; }
 .grade { color: #0b0e1c; }
-.g-know { background: var(--know); }
-.g-good { background: var(--good); }
-.g-hard { background: var(--hard); color: #fff; }
+/* grade button colour = the stage the word lands in for the current mode.
+   reading: Not yet->learning, Pretty good->learned, Know it->mastered.
+   writing: Not yet->read-mastered (baseline), Pretty good->learned, Know it->mastered. */
+.actions.read  .g-hard { background: var(--stage-rl); }
+.actions.read  .g-good { background: var(--stage-rd); }
+.actions.read  .g-know { background: var(--stage-rm); }
+.actions.write .g-hard { background: var(--stage-rm); }
+.actions.write .g-good { background: var(--stage-wd); }
+.actions.write .g-know { background: var(--stage-wm); }
 button:active { transform: translateY(1px); filter: brightness(.95); }
 
 /* example sentence (Read mode) */

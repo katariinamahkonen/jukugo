@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-03.8";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-03.9";   // bump on each change; shown in UI + console
   var D = window.__BALL_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -550,7 +550,7 @@
     // grades appear only once everything is revealed (recognition: step 1,
     // production: step 2). Before that, a single "reveal" button advances a step.
     var lastStep = (activeMode === "recognition") ? 1 : 2;
-    var actions = h("div", "actions");
+    var actions = h("div", "actions " + (activeMode === "recognition" ? "read" : "write"));
     if (step < lastStep) {
       var label = (activeMode === "recognition") ? "Show answer"
                 : (step === 0) ? "Show hiragana" : "Show kanji";
@@ -943,11 +943,11 @@
 
   // The five stage series and their colours (must match the HUD / styles.css).
   var STAGE_SERIES = [
-    { key: "rl", label: "read learning", color: "#f4b740" },
-    { key: "rd", label: "read learned", color: "#35c26b" },
-    { key: "rm", label: "read mastered", color: "#6ea8fe" },
-    { key: "wd", label: "write learned", color: "#a78bfa" },
-    { key: "wm", label: "write mastered", color: "#ec4faf" }
+    { key: "rl", label: "read learning", color: "#ced4da" },
+    { key: "rd", label: "read learned", color: "#66d9e8" },
+    { key: "rm", label: "read mastered", color: "#46afe3" },
+    { key: "wd", label: "write learned", color: "#12b886" },
+    { key: "wm", label: "write mastered", color: "#3dbf56" }
   ];
 
   function poolRow(label, reading) {
@@ -1062,15 +1062,15 @@
           '<b>Pretty good</b>, or <b>Not yet</b>. Your rating decides how soon it comes back.</li>' +
         '<li>Each word climbs these stages:' +
           '<div class="flow">' +
-            '<span class="chip2" style="background:#f4b740">learning</span>' +
+            '<span class="chip2" style="background:#ced4da">learning</span>' +
             '<span class="arrow">\u2192</span>' +
-            '<span class="chip2" style="background:#35c26b">learned</span>' +
+            '<span class="chip2" style="background:#66d9e8">learned</span>' +
             '<span class="arrow">\u2192</span>' +
-            '<span class="chip2" style="background:#6ea8fe">mastered</span>' +
+            '<span class="chip2" style="background:#46afe3">mastered</span>' +
             '<span class="arrow">\u2192</span>' +
-            '<span class="chip2" style="background:#a78bfa">write learned</span>' +
+            '<span class="chip2" style="background:#12b886">write learned</span>' +
             '<span class="arrow">\u2192</span>' +
-            '<span class="chip2" style="background:#ec4faf">write mastered</span>' +
+            '<span class="chip2" style="background:#3dbf56">write mastered</span>' +
           '</div>' +
         '</li>' +
         '<li>Use the top bar to switch <b>Read</b> / <b>Write</b> / <b>Settings</b>. ' +
