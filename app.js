@@ -128,8 +128,13 @@
     var order = 0, arr = [];
     this.learning.forEach(function (idx) { arr.push({ idx: idx, order: order++ }); });
     arr.sort(function (a, b) {
+      // evict not-yet-quizzed "filler" first (it's just unused capacity under the
+      // cap); only quizzed words are dropped if the pool is STILL over target.
+      var aq = ((lastQuiz.get(a.idx) || 0) !== 0) ? 1 : 0;
+      var bq = ((lastQuiz.get(b.idx) || 0) !== 0) ? 1 : 0;
+      if (aq !== bq) return aq - bq;                     // unquizzed first
       var wa = WORDS[a.idx], wb = WORDS[b.idx];
-      if (wa.l !== wb.l) return wb.l - wa.l;            // hardest level first
+      if (wa.l !== wb.l) return wb.l - wa.l;            // then hardest level first
       if (wa._rank !== wb._rank) return wb._rank - wa._rank; // then rarest first
       return b.order - a.order;                          // then newest-added first
     });
