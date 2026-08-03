@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-03.5";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-03.6";   // bump on each change; shown in UI + console
   var D = window.__BALL_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -913,6 +913,14 @@
       "Export saves ALL your progress to a file you can keep or move to another device. " +
       "Restore replaces the progress on this device with a backup file. " +
       "Do this regularly \u2014 progress is stored only in this browser and can be lost if its data is cleared."));
+
+    // --- help
+    view.appendChild(h("h3", null, "Help"));
+    var helpRow = h("div", "btnrow");
+    var howBtn = h("button", "linkbtn", "How to play");
+    howBtn.onclick = showIntro;
+    helpRow.appendChild(howBtn);
+    view.appendChild(helpRow);
   }
 
   // The five stage series and their colours (must match the HUD / styles.css).
@@ -1026,6 +1034,43 @@
   }
   function showProgress() { currentTab = "progress"; render(); }
 
+  // Welcome / how-to-play overlay. Shown on first launch (settings.seenIntro)
+  // and re-openable from Progress > Help. Static, trusted markup.
+  function showIntro() {
+    var prev = $("intro"); if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+    var o = document.createElement("div");
+    o.id = "intro"; o.className = "intro";
+    o.innerHTML =
+      '<h1>Jukugo</h1>' +
+      '<div class="tag">Learn common Japanese words \u2014 first to read them, then to write them.</div>' +
+      '<ol>' +
+        '<li>See a word, tap <b>Show answer</b>, then rate yourself: <b>Know it</b>, ' +
+          '<b>Pretty good</b>, or <b>Not yet</b>. Your rating decides how soon it comes back.</li>' +
+        '<li>Each word climbs these stages:' +
+          '<div class="flow">' +
+            '<span class="chip2" style="background:#f4b740">learning</span>' +
+            '<span class="arrow">\u2192</span>' +
+            '<span class="chip2" style="background:#35c26b">learned</span>' +
+            '<span class="arrow">\u2192</span>' +
+            '<span class="chip2" style="background:#6ea8fe">mastered</span>' +
+            '<span class="arrow">\u2192</span>' +
+            '<span class="chip2" style="background:#a78bfa">write learned</span>' +
+            '<span class="arrow">\u2192</span>' +
+            '<span class="chip2" style="background:#ec4faf">write mastered</span>' +
+          '</div>' +
+        '</li>' +
+        '<li>Use the top bar to switch <b>Read</b> / <b>Write</b> / <b>Progress</b>. ' +
+          'Writing unlocks once a word is mastered in reading.</li>' +
+      '</ol>' +
+      '<div class="tip">Tip: back up your progress from <b>Progress \u2192 Backup &amp; restore</b>.</div>' +
+      '<button class="startbtn" id="introStart">Start learning</button>';
+    document.body.appendChild(o);
+    $("introStart").onclick = function () {
+      settings.seenIntro = true; save();
+      if (o.parentNode) o.parentNode.removeChild(o);
+    };
+  }
+
   // ------------------------------------------------------------------- boot
   function boot() {
     console.log("Jukugo version " + VERSION);
@@ -1047,6 +1092,7 @@
     fi.onchange = function () { settings.showFinnish = fi.checked; save(); render(); };
 
     render();
+    if (!settings.seenIntro) showIntro();
   }
 
   if (typeof document !== "undefined" && document.getElementById) {
