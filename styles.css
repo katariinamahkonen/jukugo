@@ -151,17 +151,20 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
   background: radial-gradient(700px 900px at 50% -10%, #1b2140, var(--bg));
   color: var(--ink); overflow-y: auto; }
 .intro h1 { font-size: 40px; font-weight: 800; letter-spacing: 1px; margin: 0; }
-.intro .tag { color: var(--muted); font-size: 15px; margin-top: -6px; }
-.intro ol { margin: 2px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
-.intro li { font-size: 14px; line-height: 1.45; }
-.intro li b { color: var(--ink); }
-.intro .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; }
-.intro .chip2 { font-size: 11px; font-weight: 800; padding: 4px 9px; border-radius: 999px; color: #0b0e1c; }
-.intro .arrow { color: var(--muted); font-size: 12px; }
-.intro .tip { font-size: 12px; color: var(--muted); }
-.intro .startbtn { margin-top: 10px; border: 0; border-radius: 14px; padding: 16px; font-size: 17px;
+.intro .startbtn { margin-top: 4px; border: 0; border-radius: 14px; padding: 16px; font-size: 17px;
   font-weight: 800; background: var(--accent); color: #0b0e1c; }
 .intro .startbtn:active { transform: translateY(1px); filter: brightness(.95); }
+
+/* how-to-play instructions (used in the overlay and on the Settings page) */
+.howto { display: flex; flex-direction: column; gap: 12px; }
+.howto .tag { color: var(--muted); font-size: 15px; }
+.howto ol { margin: 2px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
+.howto li { font-size: 14px; line-height: 1.45; }
+.howto li b { color: var(--ink); }
+.howto .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; }
+.howto .chip2 { font-size: 11px; font-weight: 800; padding: 4px 9px; border-radius: 999px; color: #0b0e1c; }
+.howto .arrow { color: var(--muted); font-size: 12px; }
+.howto .tip { font-size: 12px; color: var(--muted); }
 
 /* ---- narrow phones: scale things down so everything fits ---- */
 @media (max-width: 412px) {
