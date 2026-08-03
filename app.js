@@ -1,12 +1,13 @@
-/* Kanji Ball - offline vocabulary game.
- * Implements kanji_ball_game.md: two modes (recognition/production) = two
- * independent balls, 3-step kanji state, two-phase priority selection,
- * Anki-style 3 grades, level unlocking, localStorage persistence, progress.
+/* Jukugo - offline Japanese vocabulary game (see SPEC.md).
+ * One linear path per word: r_learning -> r_learned -> r_mastered ->
+ * w_learning -> w_learned -> w_mastered. A single shared state map is the source
+ * of truth; two "Ball" views (reading/writing) derive per-phase sets and kanji
+ * connectivity. Rounds = 2 retention + 1 acquisition; localStorage persistence.
  * Vanilla JS, classic script (works from file:// on Android Chrome). */
 (function () {
   "use strict";
 
-  var VERSION = "2026-07-31.4";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-03.5";   // bump on each change; shown in UI + console
   var D = window.__BALL_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -16,10 +17,9 @@
   var N = WORDS.length;
   var NON_JOYO = 100000;
   var INF = Infinity;
-  // In-flight new-word buffer (learning pool). Spec §9 suggests 50, but a smaller
-  // buffer keeps acquisitions close to the tuned priority order. Reading and
-  // writing each have their OWN target (settings.poolTargetRead / *Write): it caps
-  // how many cards rotate in acquisition before they reach the learned level.
+  // Learning-pool cap per phase (settings.poolTargetRead / *Write): how many
+  // words you can be actively learning at once before they reach the learned
+  // level. New words are introduced only while the pool is below this cap.
   var POOL_TARGET_DEFAULT = 8;
   var POOL_MIN = 4, POOL_MAX = 200;
   function poolTarget(reading) {
@@ -27,16 +27,15 @@
     if (!n) n = POOL_TARGET_DEFAULT;
     return Math.max(POOL_MIN, Math.min(POOL_MAX, n));
   }
-  // Introduce a NEW word only while you're in an active session; if your most
-  // recent quiz is older than this gap, review an existing learning word first
-  // (a "warm-up on return"). User-configurable (Settings), default 3h.
+  // Minimum spacing before a learning word is shown again: a word not seen for
+  // this long is "due" and reviewed before any new word. User-configurable
+  // (Settings), default 3h.
   var ACQUIRE_GAP_DEFAULT_H = 3, ACQUIRE_GAP_MIN_H = 1, ACQUIRE_GAP_MAX_H = 48;
   function acquireGapHours() {
     var hh = settings.acquireGapHours;
     if (hh == null) hh = ACQUIRE_GAP_DEFAULT_H;
     return Math.max(ACQUIRE_GAP_MIN_H, Math.min(ACQUIRE_GAP_MAX_H, hh | 0));
   }
-  function acquireGapMs() { return acquireGapHours() * 3600 * 1000; }
   var MAX_LEVEL = 8;   // recomputed from data below
   var RETENTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't re-review a word within 24h
   // Words with BCCWJ rank worse than this (or unranked) are "rare": they are
@@ -44,8 +43,7 @@
   // unlocked kanji are done, so rare idioms don't appear early. [decision]
   var RARE_RANK = 30000;
 
-  // --- shared, read-only indices -------------------------------------------
-  var kanjiIndex = new Map();          // kanji -> [word indices]
+  // --- per-word derived fields + level histogram ---------------------------
   var levelCount = {};                 // level -> count
   for (var i = 0; i < N; i++) {
     var w = WORDS[i];
@@ -54,12 +52,6 @@
     w._klen = w.s.length;
     levelCount[w.l] = (levelCount[w.l] || 0) + 1;
     if (w.l > MAX_LEVEL) MAX_LEVEL = w.l;
-    for (var j = 0; j < w._k.length; j++) {
-      var kc = w._k[j];
-      var arr = kanjiIndex.get(kc);
-      if (!arr) { arr = []; kanjiIndex.set(kc, arr); }
-      arr.push(i);
-    }
   }
   function appKey(kc) { return KORDER.hasOwnProperty(kc) ? KORDER[kc] : NON_JOYO; }
 
@@ -79,7 +71,6 @@
 
   // A Ball holds the derived, per-phase view (sets + kanji connectivity + size).
   function Ball(phase) {
-    this.phase = phase;                // "reading" | "writing"
     this.reading = (phase === "reading");
     this.S = this.reading
       ? { LEARNING: R_LEARNING, LEARNED: R_LEARNED, MASTERED: R_MASTERED }
@@ -98,10 +89,6 @@
     return st === R_LEARNED || st === R_MASTERED ||
            st === W_LEARNING || st === W_LEARNED || st === W_MASTERED;
   }
-  Ball.prototype.connectorCount = function (kc) { return (this.count.get(kc) || 0) >= 2; };
-  Ball.prototype.connectivity = function (w) {
-    var c = 0; for (var i = 0; i < w._k.length; i++) if (this.connectorCount(w._k[i])) c++; return c;
-  };
   Ball.prototype.incKanji = function (w, d) {
     for (var i = 0; i < w._k.length; i++) {
       var kc = w._k[i]; this.count.set(kc, (this.count.get(kc) || 0) + d);
@@ -256,7 +243,7 @@
       if (t < oldestT) { oldestT = t; oldest = idx; }
     });
     // 1) a learning word overdue by >= the spacing gap: review it first
-    if (oldest != null && (Date.now() - oldestT) >= acquireGapMs()) return oldest;
+    if (oldest != null && (Date.now() - oldestT) >= acquireGapHours() * 3600000) return oldest;
     // 2) nothing due and room under the cap: introduce a new word
     if (size < target) {
       var nw = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
@@ -412,13 +399,12 @@
   // ------------------------------------------------------------------- rounds
   // A round = 2 retention + 1 acquisition. We present one card at a time.
   var queue = [];            // pending cards this round: {idx, kind}
-  var roundExclude = new Set();
 
   function buildRound() {
     var b = ball();
     b.maybeUnlock();
     queue = [];
-    roundExclude = new Set();
+    var roundExclude = new Set();
     for (var i = 0; i < 2; i++) {
       var r = b.pickRetention(roundExclude);
       if (r == null) break;
@@ -559,8 +545,8 @@
     view.appendChild(actions);
 
     // Read mode only: under the grade buttons, offer an on-demand example
-    // sentence (LLM via the server proxy). Shown once the answer is revealed so
-    // the furigana reading doesn't spoil the recall task.
+    // sentence (generated via OpenAI, see below). Shown once the answer is
+    // revealed so the furigana reading doesn't spoil the recall task.
     if (activeMode === "recognition" && step >= lastStep) {
       var exWrap = h("div", "examplewrap");
       renderExample(exWrap, w);
