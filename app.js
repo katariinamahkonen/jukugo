@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-03.9";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-03.10";   // bump on each change; shown in UI + console
   var D = window.__BALL_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -943,7 +943,7 @@
 
   // The five stage series and their colours (must match the HUD / styles.css).
   var STAGE_SERIES = [
-    { key: "rl", label: "read learning", color: "#ced4da" },
+    { key: "rl", label: "read learning", color: "#868e96" },
     { key: "rd", label: "read learned", color: "#66d9e8" },
     { key: "rm", label: "read mastered", color: "#46afe3" },
     { key: "wd", label: "write learned", color: "#12b886" },
@@ -1062,7 +1062,7 @@
           '<b>Pretty good</b>, or <b>Not yet</b>. Your rating decides how soon it comes back.</li>' +
         '<li>Each word climbs these stages:' +
           '<div class="flow">' +
-            '<span class="chip2" style="background:#ced4da">learning</span>' +
+            '<span class="chip2" style="background:#868e96">learning</span>' +
             '<span class="arrow">\u2192</span>' +
             '<span class="chip2" style="background:#66d9e8">learned</span>' +
             '<span class="arrow">\u2192</span>' +

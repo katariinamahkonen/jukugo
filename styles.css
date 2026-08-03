@@ -13,7 +13,7 @@
   --magenta: #ec4faf;
   /* unified stage ladder (grey -> aqua -> green); button colour = the stage a
      word lands in for the current mode, so read-mastered is the shared hinge. */
-  --stage-rl: #ced4da;   /* read learning  (grey)      */
+  --stage-rl: #868e96;   /* read learning  (grey)      */
   --stage-rd: #66d9e8;   /* read learned   (light aqua) */
   --stage-rm: #46afe3;   /* read mastered  (hinge)     */
   --stage-wd: #12b886;   /* write learned  (teal)      */
@@ -166,7 +166,7 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
   color: var(--ink); overflow-y: auto; }
 .intro h1 { font-size: 40px; font-weight: 800; letter-spacing: 1px; margin: 0; }
 .intro .startbtn { margin-top: 4px; border: 0; border-radius: 14px; padding: 16px; font-size: 17px;
-  font-weight: 800; background: var(--accent); color: #0b0e1c; }
+  font-weight: 800; background: var(--warm); color: #0b0e1c; }
 .intro .startbtn:active { transform: translateY(1px); filter: brightness(.95); }
 
 /* how-to-play instructions (used in the overlay and on the Settings page) */
