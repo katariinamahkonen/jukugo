@@ -18,7 +18,8 @@
   --stage-rm: #46afe3;   /* read mastered  (hinge)     */
   --stage-wd: #12b886;   /* write learned  (teal)      */
   --stage-wm: #3dbf56;   /* write mastered (green)     */
-  --warm: #d6b231;       /* warm accent for reveal button (balances cool grades) */
+  --warm: #d6b231;       /* vivid gold: active tab, Start button */
+  --reveal: #ab9666;     /* muted gray-brown gold: reveal button (less prominent) */
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; }
@@ -41,7 +42,7 @@ body {
 .brand { font-weight: 700; letter-spacing: .5px; font-size: 15px; color: var(--muted); }
 .modes { margin-left: auto; display: flex; background: var(--panel); border-radius: 999px; padding: 3px; }
 .mode { border: 0; background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; padding: 7px 12px; border-radius: 999px; }
-.mode.on { background: var(--accent); color: #0b0e1c; }
+.mode.on { background: var(--warm); color: #0b0e1c; }
 .fi { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
 .fi input { accent-color: var(--accent); }
 
@@ -97,7 +98,7 @@ body {
 .actions button { width: 100%; border: 0; border-radius: 14px; padding: 16px 10px; font-size: 16px; font-weight: 700; color: #0b0e1c; }
 /* the lone Show-answer button fills the whole action area (= three grade buttons) */
 .actions .show { flex: 1; }
-.show { background: var(--warm); color: #0b0e1c; }
+.show { background: var(--reveal); color: #0b0e1c; }
 .grade { color: #0b0e1c; }
 /* grade button colour = the stage the word lands in for the current mode.
    reading: Not yet->learning, Pretty good->learned, Know it->mastered.

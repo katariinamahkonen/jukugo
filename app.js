@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-03.10";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-03.11";   // bump on each change; shown in UI + console
   var D = window.__BALL_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
