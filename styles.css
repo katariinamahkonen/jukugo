@@ -142,6 +142,10 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
 .setval { min-width: 32px; text-align: center; font-size: 20px; font-weight: 800; color: var(--accent); }
 .sethint { font-size: 11px; color: var(--muted); padding: 8px 4px 0; line-height: 1.4; }
 .setrow.col { flex-direction: column; align-items: stretch; gap: 8px; }
+.seg { display: flex; background: var(--panel2); border-radius: 999px; padding: 3px; }
+.segbtn { border: 0; background: transparent; color: var(--muted); font-weight: 700; font-size: 13px;
+  padding: 8px 14px; border-radius: 999px; }
+.segbtn.on { background: var(--warm); color: #0b0e1c; }
 .btnrow { display: flex; gap: 10px; }
 .btnrow .linkbtn { flex: 1; border: 1px solid #2a3157; border-radius: 12px; background: var(--panel2);
   color: var(--ink); font-weight: 700; font-size: 14px; padding: 12px 10px; }

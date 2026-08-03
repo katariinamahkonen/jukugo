@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-03.11";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-03.12";   // bump on each change; shown in UI + console
   var D = window.__BALL_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -324,7 +324,7 @@
 
   // ----------------------------------------------------------- persistence
   var KEY = "ballGame.v1";
-  var settings = { showFinnish: true, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT, acquireGapHours: ACQUIRE_GAP_DEFAULT_H };
+  var settings = { showFinnish: true, romaji: false, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT, acquireGapHours: ACQUIRE_GAP_DEFAULT_H };
   // Single progress structure: end-of-day snapshot of each stage's count.
   var progress = { dailyStages: {} };   // { 'YYYY-MM-DD': {rl,rd,rm,wl,wd,wm} }
   var unlockedLevel = 1;                 // reading curriculum level (writing has none)
@@ -338,6 +338,7 @@
       settings.poolTargetWrite = settings.poolTarget || POOL_TARGET_DEFAULT;
     if (settings.acquireGapHours == null)
       settings.acquireGapHours = ACQUIRE_GAP_DEFAULT_H;
+    if (settings.romaji == null) settings.romaji = false;
     delete settings.poolTarget;
   }
   function rebuildAll() {
@@ -511,6 +512,73 @@
       { rl: c.rl, rd: c.rd, rm: c.rm + c.wl, wd: c.wd, wm: c.wm };
   }
 
+  // Modified-Hepburn romaji from a kana reading (readings are 100% clean kana).
+  // Long vowels use macrons (\u304b\u3046 -> k\u014d, \u30b3\u30fc\u30d2\u30fc -> k\u014dh\u012b); \u3063 doubles the next
+  // consonant (\u30de\u30c3\u30c1\u30e3 -> matcha); \u3093 gets an apostrophe before a vowel or y
+  // (\u3057\u3093\u3044\u3061 -> shin'ichi). ei/ii are kept as-is per common usage.
+  var RO_MONO = {
+    "\u3042":"a","\u3044":"i","\u3046":"u","\u3048":"e","\u304a":"o",
+    "\u304b":"ka","\u304d":"ki","\u304f":"ku","\u3051":"ke","\u3053":"ko",
+    "\u304c":"ga","\u304e":"gi","\u3050":"gu","\u3052":"ge","\u3054":"go",
+    "\u3055":"sa","\u3057":"shi","\u3059":"su","\u305b":"se","\u305d":"so",
+    "\u3056":"za","\u3058":"ji","\u305a":"zu","\u305c":"ze","\u305e":"zo",
+    "\u305f":"ta","\u3061":"chi","\u3064":"tsu","\u3066":"te","\u3068":"to",
+    "\u3060":"da","\u3062":"ji","\u3065":"zu","\u3067":"de","\u3069":"do",
+    "\u306a":"na","\u306b":"ni","\u306c":"nu","\u306d":"ne","\u306e":"no",
+    "\u306f":"ha","\u3072":"hi","\u3075":"fu","\u3078":"he","\u307b":"ho",
+    "\u3070":"ba","\u3073":"bi","\u3076":"bu","\u3079":"be","\u307c":"bo",
+    "\u3071":"pa","\u3074":"pi","\u3077":"pu","\u307a":"pe","\u307d":"po",
+    "\u307e":"ma","\u307f":"mi","\u3080":"mu","\u3081":"me","\u3082":"mo",
+    "\u3084":"ya","\u3086":"yu","\u3088":"yo",
+    "\u3089":"ra","\u308a":"ri","\u308b":"ru","\u308c":"re","\u308d":"ro",
+    "\u308f":"wa","\u3090":"wi","\u3091":"we","\u3092":"o","\u3093":"n","\u3094":"vu",
+    "\u3041":"a","\u3043":"i","\u3045":"u","\u3047":"e","\u3049":"o",
+    "\u3083":"ya","\u3085":"yu","\u3087":"yo","\u3063":""
+  };
+  var RO_YOON = {
+    "\u304d":"ky","\u304e":"gy","\u3057":"sh","\u3058":"j","\u3061":"ch","\u3062":"j",
+    "\u306b":"ny","\u3072":"hy","\u3073":"by","\u3074":"py","\u307f":"my","\u308a":"ry"
+  };
+  var RO_SMALL = { "\u3083":"a","\u3085":"u","\u3087":"o" };
+  var RO_DIGRAPH = {
+    "\u3075\u3041":"fa","\u3075\u3043":"fi","\u3075\u3047":"fe","\u3075\u3049":"fo",
+    "\u3094\u3041":"va","\u3094\u3043":"vi","\u3094\u3047":"ve","\u3094\u3049":"vo",
+    "\u3066\u3043":"ti","\u3067\u3043":"di","\u3068\u3045":"tu","\u3069\u3045":"du",
+    "\u3046\u3043":"wi","\u3046\u3047":"we","\u3046\u3049":"wo",
+    "\u3057\u3047":"she","\u3061\u3047":"che","\u3058\u3047":"je",
+    "\u3064\u3041":"tsa","\u3064\u3043":"tsi","\u3064\u3047":"tse","\u3064\u3049":"tso"
+  };
+  function kanaToRomaji(kana) {
+    if (!kana) return "";
+    var s = "";
+    for (var i = 0; i < kana.length; i++) {          // katakana -> hiragana (keep \u30fc)
+      var c = kana.charCodeAt(i);
+      s += (c >= 0x30A1 && c <= 0x30F6) ? String.fromCharCode(c - 0x60) : kana[i];
+    }
+    var units = [], j = 0, sokuon = false;
+    while (j < s.length) {
+      var ch = s[j], nx = s[j + 1] || "";
+      if (ch === "\u30FC") { units.push("~"); j++; continue; }   // long-vowel mark
+      if (ch === "\u3063") { sokuon = true; j++; continue; }     // small tsu
+      var rom, adv = 1;
+      if (nx && RO_DIGRAPH[ch + nx]) { rom = RO_DIGRAPH[ch + nx]; adv = 2; }
+      else if (RO_YOON[ch] && RO_SMALL[nx]) { rom = RO_YOON[ch] + RO_SMALL[nx]; adv = 2; }
+      else if (RO_MONO[ch] != null) { rom = RO_MONO[ch]; }
+      else { rom = ch; }
+      if (sokuon) { rom = (rom.indexOf("ch") === 0) ? "t" + rom : (rom ? rom[0] + rom : rom); sokuon = false; }
+      units.push(rom); j += adv;
+    }
+    for (var k = 0; k < units.length - 1; k++) {      // n' before a vowel or y
+      if (units[k] === "n" && /^[aiueoy]/.test(units[k + 1])) units[k] = "n'";
+    }
+    var r = units.join("");
+    r = r.replace(/a~/g, "\u0101").replace(/i~/g, "\u012b").replace(/u~/g, "\u016b")
+         .replace(/e~/g, "\u0113").replace(/o~/g, "\u014d").replace(/~/g, "");
+    r = r.replace(/ou/g, "\u014d").replace(/oo/g, "\u014d").replace(/uu/g, "\u016b").replace(/aa/g, "\u0101");
+    return r;
+  }
+  function readingText(w) { return settings.romaji ? kanaToRomaji(w.r) : w.r; }
+
   function renderCard(view) {
     view.innerHTML = "";
     if (!current) current = nextCard();
@@ -537,11 +605,11 @@
     var back = h("div", "back");
     if (activeMode === "recognition") {
       if (step >= 1) {                       // one reveal: reading + meaning
-        back.appendChild(h("div", "reading", w.r));
+        back.appendChild(h("div", "reading", readingText(w)));
         back.appendChild(glossEls(w));
       }
     } else {
-      if (step === 1) back.appendChild(h("div", "reading big", w.r)); // 1: hiragana only
+      if (step === 1) back.appendChild(h("div", "reading big", readingText(w))); // 1: reading only
       if (step >= 2) back.appendChild(h("div", "jp big", w.s));       // 2: kanji only
     }
     card.appendChild(back);
@@ -862,8 +930,11 @@
     view.appendChild(chart(progress.dailyStages));
     view.appendChild(legend());
 
-    // --- settings: separate learning-pool caps for reading and writing
+    // --- settings: reading display + separate learning-pool caps
     view.appendChild(h("h3", null, "Settings"));
+    view.appendChild(readingRow());
+    view.appendChild(h("div", "sethint",
+      "Show the reading as kana or as r\u014dmaji (long vowels marked with macrons, e.g. \u304c\u3063\u3053\u3046 \u2192 gakk\u014d)."));
     view.appendChild(poolRow("Max words learning (read)", true));
     view.appendChild(poolRow("Max words learning (write)", false));
     view.appendChild(h("div", "sethint",
@@ -950,6 +1021,23 @@
     { key: "wm", label: "write mastered", color: "#3dbf56" }
   ];
 
+  function readingRow() {
+    var row = h("div", "setrow");
+    row.appendChild(h("span", "setlbl", "Reading display"));
+    var seg = h("div", "seg");
+    var hira = h("button", "segbtn", "Hiragana");
+    var roma = h("button", "segbtn", "R\u014dmaji");
+    function refresh() {
+      hira.className = "segbtn" + (settings.romaji ? "" : " on");
+      roma.className = "segbtn" + (settings.romaji ? " on" : "");
+    }
+    hira.onclick = function () { if (settings.romaji) { settings.romaji = false; save(); refresh(); render(); } };
+    roma.onclick = function () { if (!settings.romaji) { settings.romaji = true; save(); refresh(); render(); } };
+    refresh();
+    seg.appendChild(hira); seg.appendChild(roma);
+    row.appendChild(seg);
+    return row;
+  }
   function poolRow(label, reading) {
     var row = h("div", "setrow");
     row.appendChild(h("span", "setlbl", label));
@@ -1127,7 +1215,8 @@
       setActive: function (m) { activeMode = m; },
       stateOf: function (idx) { return states.get(idx); },
       ball: ball, buildRound: buildRound, nextCard: nextCard, grade: grade,
-      getQueue: function () { return queue; }, load: load, save: save
+      getQueue: function () { return queue; }, load: load, save: save,
+      kanaToRomaji: kanaToRomaji
     };
   }
 })();
