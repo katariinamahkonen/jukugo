@@ -165,7 +165,7 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
 
 /* welcome / how-to-play overlay */
 .intro { position: fixed; inset: 0; z-index: 50; max-width: 480px; margin: 0 auto;
-  display: flex; flex-direction: column; justify-content: center; gap: 14px;
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 14px;
   padding: calc(20px + env(safe-area-inset-top)) 24px calc(20px + env(safe-area-inset-bottom));
   background: radial-gradient(700px 900px at 50% -10%, #1b2140, var(--bg));
   color: var(--ink); overflow-y: auto; }
@@ -177,7 +177,7 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
 .intro .ghostbtn { border: 1px solid #2a3157; border-radius: 14px; padding: 14px; font-size: 15px;
   font-weight: 700; background: transparent; color: var(--ink); }
 .intro .ghostbtn:active { transform: translateY(1px); filter: brightness(.95); }
-.intro-welcome { text-align: center; }
+.intro-welcome { justify-content: center; text-align: center; }
 
 /* how-to-play instructions (used in the overlay and on the Settings page) */
 .howto { display: flex; flex-direction: column; gap: 12px; }
