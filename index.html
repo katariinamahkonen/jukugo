@@ -72,7 +72,9 @@
         location.reload();
       });
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("sw.js").then(function (reg) {
+        // updateViaCache:"none" -> always revalidate sw.js from the network, so a
+        // new deploy is detected even if the HTTP cache still holds the old script.
+        navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (reg) {
           reg.update();  // proactively check for a new version on each launch
         }).catch(function () {});
       });
