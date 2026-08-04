@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-04.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-04.3";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -649,9 +649,9 @@
       show.onclick = function () { step++; render(); };
       actions.appendChild(show);
     } else {
-      actions.appendChild(gradeBtn("Know it", "know g-know"));
-      actions.appendChild(gradeBtn("Pretty good", "good g-good"));
-      actions.appendChild(gradeBtn("Not yet", "hard g-hard"));
+      actions.appendChild(gradeBtn("Ask again next month", "know g-know"));
+      actions.appendChild(gradeBtn("Ask again tomorrow", "good g-good"));
+      actions.appendChild(gradeBtn("Keep quizzing", "hard g-hard"));
     }
     view.appendChild(actions);
 
@@ -1170,8 +1170,9 @@
     return '' +
       '<div class="tag">Learn common Japanese words \u2014 first to read them, then to write them.</div>' +
       '<ol>' +
-        '<li>See a word, tap <b>Show answer</b>, then rate yourself: <b>Know it</b>, ' +
-          '<b>Pretty good</b>, or <b>Not yet</b>. Your rating decides how soon it comes back.</li>' +
+        '<li>See a word, tap <b>Show answer</b>, then choose when to see it again: ' +
+          '<b>Ask again next month</b>, <b>Ask again tomorrow</b>, or <b>Keep quizzing</b> ' +
+          '(now). Your choice decides how soon it comes back.</li>' +
         '<li>Each word climbs these stages:' +
           '<div class="flow">' +
             '<span class="chip2" style="background:#868e96">learning</span>' +
