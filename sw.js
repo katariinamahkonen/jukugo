@@ -1,6 +1,6 @@
 /* Jukugo service worker: precache the app shell so it works fully offline.
  * Bump CACHE whenever any cached file changes (forces clients to refresh). */
-var CACHE = "jukugo-2026-08-04.6";
+var CACHE = "jukugo-2026-08-04.7";
 var ASSETS = [
   "./",
   "./index.html",
@@ -35,12 +35,26 @@ self.addEventListener("fetch", function (e) {
     return;
   }
 
-  // Everything else: cache-first, then network (and cache the result).
-  e.respondWith(caches.match(req).then(function (hit) {
-    return hit || fetch(req).then(function (res) {
-      var copy = res.clone();
-      caches.open(CACHE).then(function (c) { c.put(req, copy); });
-      return res;
-    });
-  }));
+  var path = new URL(req.url).pathname;
+  // The big, immutable payloads stay cache-first (fast, offline, rarely change).
+  var cacheFirst = /(?:data\.js|icon\.svg|manifest\.webmanifest)$/.test(path);
+
+  if (cacheFirst) {
+    e.respondWith(caches.match(req).then(function (hit) {
+      return hit || fetch(req).then(function (res) {
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(req, copy); });
+        return res;
+      });
+    }));
+    return;
+  }
+
+  // App code (app.js, styles.css, config.js, ...): network-first so a deploy is
+  // picked up immediately when online; fall back to cache when offline.
+  e.respondWith(fetch(req).then(function (res) {
+    var copy = res.clone();
+    caches.open(CACHE).then(function (c) { c.put(req, copy); });
+    return res;
+  }).catch(function () { return caches.match(req); }));
 });
