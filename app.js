@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-04.3";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-04.4";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -1170,10 +1170,19 @@
     return '' +
       '<div class="tag">Learn common Japanese words \u2014 first to read them, then to write them.</div>' +
       '<ol>' +
-        '<li>See a word, tap <b>Show answer</b>, then choose when to see it again: ' +
-          '<b>Ask again next month</b>, <b>Ask again tomorrow</b>, or <b>Keep quizzing</b> ' +
-          '(now). Your choice decides how soon it comes back.</li>' +
-        '<li>Each word climbs these stages:' +
+        '<li>See a word and recall it, then tap <b>Show answer</b>. Now say how well you knew it \u2014 ' +
+          'your choice moves the word to a level and sets when it returns. ' +
+          'The <b>button colour is the level</b> the word moves to:' +
+          '<div class="choices">' +
+            '<div class="choice"><span class="chip2" style="background:#868e96">Keep quizzing</span>' +
+              '<span>didn\u2019t know it \u2014 stays at <b>learning</b>, comes back right away</span></div>' +
+            '<div class="choice"><span class="chip2" style="background:#66d9e8">Ask again tomorrow</span>' +
+              '<span>knew it \u2014 up to <b>learned</b>, returns in about a day</span></div>' +
+            '<div class="choice"><span class="chip2" style="background:#46afe3">Ask again next month</span>' +
+              '<span>knew it well \u2014 up to <b>mastered</b>, returns in about 4 weeks</span></div>' +
+          '</div>' +
+        '</li>' +
+        '<li>Answering well climbs the level ladder; <b>Keep quizzing</b> drops a word back to learning:' +
           '<div class="flow">' +
             '<span class="chip2" style="background:#868e96">learning</span>' +
             '<span class="arrow">\u2192</span>' +
@@ -1185,9 +1194,11 @@
             '<span class="arrow">\u2192</span>' +
             '<span class="chip2" style="background:#3dbf56">write mastered</span>' +
           '</div>' +
+          'Even <b>mastered</b> words come back about once a month so you don\u2019t forget them.' +
         '</li>' +
-        '<li>Use the top bar to switch <b>Read</b> / <b>Write</b> / <b>Settings</b>. ' +
-          'Writing unlocks once a word is mastered in reading.</li>' +
+        '<li>Use the top bar to switch <b>Read</b> / <b>Write</b> / <b>Settings</b>. In writing the same ' +
+          'three choices move a word through the two write levels (teal \u2192 green); ' +
+          'writing unlocks once a word is <b>mastered</b> in reading.</li>' +
       '</ol>' +
       '<div class="tip">Tip: back up your progress from <b>Settings \u2192 Backup &amp; restore</b>.</div>';
   }

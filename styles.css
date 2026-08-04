@@ -180,6 +180,10 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
 .howto ol { margin: 2px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
 .howto li { font-size: 14px; line-height: 1.45; }
 .howto li b { color: var(--ink); }
+.howto .choices { display: flex; flex-direction: column; gap: 7px; margin-top: 8px; }
+.howto .choice { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.35; }
+.howto .choice .chip2 { flex-shrink: 0; }
+.howto .choice > span:last-child { flex: 1 1 auto; min-width: 0; }
 .howto .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; }
 .howto .chip2 { font-size: 11px; font-weight: 800; padding: 4px 9px; border-radius: 999px; color: #0b0e1c; }
 .howto .arrow { color: var(--muted); font-size: 12px; }
