@@ -127,7 +127,8 @@ Long translation lists are collapsed after 3 senses behind a "+N more" toggle.
 
 ## 10. Persistence
 
-Everything is stored in `localStorage` under `ballGame.v1` (schema v3):
+Everything is stored in `localStorage` under `jukugo.v1` (schema v3; the pre-rename
+`ballGame.v1` key is read once and migrated automatically):
 
 ```jsonc
 {
@@ -151,7 +152,7 @@ Everything is stored in `localStorage` under `ballGame.v1` (schema v3):
 ## 11. Backup & restore
 
 Because progress lives only in the browser, Settings offers **Export backup**
-(downloads a JSON file bundling the `ballGame.v1` blob + cached example
+(downloads a JSON file bundling the `jukugo.v1` blob + cached example
 sentences) and **Restore backup** (validates and replaces local progress, then
 reloads). Restore opens the Downloads folder where the File System Access API is
 available (desktop Chromium); elsewhere it uses the standard file picker.
@@ -161,7 +162,7 @@ available (desktop Chromium); elsewhere it uses the standard file picker.
 The Read card offers "Get example sentence": a direct browser call to the OpenAI
 Chat Completions API using the per-device key (from Settings, or a built-in key
 in `config.js` if present). Responses are validated (complete furigana coverage)
-and cached in `localStorage` (`ballGame.examples.v1`) keyed by surface+reading,
+and cached in `localStorage` (`jukugo.examples.v1`) keyed by surface+reading,
 so a word's sentence is instant and available offline after first fetch.
 
 ## 13. Offline / PWA

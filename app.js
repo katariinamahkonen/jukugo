@@ -7,8 +7,8 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-04.1";   // bump on each change; shown in UI + console
-  var D = window.__BALL_DATA__;
+  var VERSION = "2026-08-04.2";   // bump on each change; shown in UI + console
+  var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
   var WORDS = D.words;                 // [{s,r,e,f,k,c,l}]
@@ -73,7 +73,7 @@
   function appKey(kc) { return KORDER.hasOwnProperty(kc) ? KORDER[kc] : NON_JOYO; }
 
   // ------------------------------------------------------------------ engine
-  // Every word follows ONE linear path (kanji_ball_game.md §7):
+  // Every word follows ONE linear path (SPEC.md §7):
   //   r_learning -> r_learned -> r_mastered -> w_learning -> w_learned -> w_mastered
   // (reading acquisition/review/mastery, then the same for writing). There is a
   // single shared `states` map (the source of truth) plus a shared `lastQuiz`
@@ -340,7 +340,8 @@
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
   // ----------------------------------------------------------- persistence
-  var KEY = "ballGame.v1";
+  var KEY = "jukugo.v1";
+  var LEGACY_KEY = "ballGame.v1";   // pre-rename key; read once if new key is absent
   var settings = { showFinnish: true, romaji: false, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT, acquireGapHours: ACQUIRE_GAP_DEFAULT_H };
   // Single progress structure: end-of-day snapshot of each stage's count.
   var progress = { dailyStages: {} };   // { 'YYYY-MM-DD': {rl,rd,rm,wl,wd,wm} }
@@ -366,7 +367,7 @@
 
   function load() {
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+    try { raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(LEGACY_KEY)); } catch (e) {}
     if (!raw) return false;
     activeMode = raw.activeMode || "recognition";
     if (raw.settings) settings = raw.settings;
@@ -668,13 +669,14 @@
   var exampleState = null;   // transient: {idx, status:'loading'|'error', error}
   // Persisted cache of generated sentences, keyed by surface\u0001reading so it
   // survives reloads and works fully offline once a word has been queried once.
-  var EXAMPLES_KEY = "ballGame.examples.v1";
+  var EXAMPLES_KEY = "jukugo.examples.v1";
+  var LEGACY_EXAMPLES_KEY = "ballGame.examples.v1";   // pre-rename key
   var exampleCache = {};     // { "surface\u0001reading": sentenceObj }
 
   function exKey(w) { return w.s + "\u0001" + w.r; }
   function loadExamples() {
     try {
-      var raw = JSON.parse(localStorage.getItem(EXAMPLES_KEY));
+      var raw = JSON.parse(localStorage.getItem(EXAMPLES_KEY) || localStorage.getItem(LEGACY_EXAMPLES_KEY));
       if (raw && raw.items && typeof raw.items === "object") exampleCache = raw.items;
     } catch (e) { /* ignore corrupt cache */ }
   }
