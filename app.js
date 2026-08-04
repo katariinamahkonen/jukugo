@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-04.5";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-04.6";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -1229,11 +1229,9 @@
     o.id = "intro"; o.className = "intro";
     o.innerHTML = '<h1>How it works</h1>' +
       '<div class="howto">' + howToPlayHTML() + '</div>' +
-      '<button class="startbtn" id="introStart">Start learning</button>' +
-      '<button class="ghostbtn" id="introBack">Back</button>';
+      '<button class="startbtn" id="introStart">Start learning</button>';
     document.body.appendChild(o);
     $("introStart").onclick = closeIntro;
-    $("introBack").onclick = function () { showIntro(); };
   }
 
   // ------------------------------------------------------------------- boot
