@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-03.12";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-04.1";   // bump on each change; shown in UI + console
   var D = window.__BALL_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -37,7 +37,8 @@
     return Math.max(ACQUIRE_GAP_MIN_H, Math.min(ACQUIRE_GAP_MAX_H, hh | 0));
   }
   var MAX_LEVEL = 8;   // recomputed from data below
-  var RETENTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't re-review a word within 24h
+  var RETENTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't re-review a LEARNED word within 24h
+  var MASTERED_COOLDOWN_MS = 28 * 24 * 60 * 60 * 1000; // re-quiz a MASTERED word every ~4 weeks
   // Words with BCCWJ rank worse than this (or unranked) are "rare": they are
   // deferred in selection (§8 Phase C) until all common words of the currently
   // unlocked kanji are done, so rare idioms don't appear early. [decision]
@@ -304,15 +305,31 @@
     // writing needs no seeding: chooseAcquire pulls read-mastered candidates.
   };
 
-  // 2 distinct random learned (not mastered) words, excluding a set.
-  // Skip any word quizzed within the last 24h (§10 cooldown) so the early game
-  // doesn't keep re-asking the same freshly-learned words.
+  // A random LEARNED (not mastered) word, excluding a set. Skip any word quizzed
+  // within the last 24h (§10 cooldown) so the early game doesn't keep re-asking
+  // the same freshly-learned words.
   Ball.prototype.pickRetention = function (exclude) {
     var pool = [], now = Date.now(), self = this;
     this.learned.forEach(function (i) {
       if (exclude.has(i) || WORDS[i]._excluded) return;
       var t = self.last.has(i) ? self.last.get(i) : 0;
       if (now - t >= RETENTION_COOLDOWN_MS) pool.push(i);
+    });
+    if (!pool.length) return null;
+    return pool[(Math.random() * pool.length) | 0];
+  };
+
+  // A random MASTERED word that is due for its ~4-week refresher. Only the ball's
+  // top plateau (r_mastered for reading, w_mastered for writing); words that have
+  // moved on into the writing path are handled there, not re-quizzed as read-
+  // mastered. Same due/grade principles as pickRetention, just a longer cooldown.
+  Ball.prototype.pickMastered = function (exclude) {
+    var top = this.S.MASTERED, pool = [], now = Date.now(), self = this;
+    this.mastered.forEach(function (i) {
+      if (exclude.has(i) || WORDS[i]._excluded) return;
+      if (states.get(i) !== top) return;
+      var t = self.last.has(i) ? self.last.get(i) : 0;
+      if (now - t >= MASTERED_COOLDOWN_MS) pool.push(i);
     });
     if (!pool.length) return null;
     return pool[(Math.random() * pool.length) | 0];
@@ -417,7 +434,8 @@
   function ball() { return balls[activeMode]; }
 
   // ------------------------------------------------------------------- rounds
-  // A round = 2 retention + 1 acquisition. We present one card at a time.
+  // A round = 1 mastered refresher + 1 retention (learned) + 1 acquisition
+  // (learning/new). Any slot is skipped when nothing is due. One card at a time.
   var queue = [];            // pending cards this round: {idx, kind}
 
   function buildRound() {
@@ -425,9 +443,13 @@
     b.maybeUnlock();
     queue = [];
     var roundExclude = new Set();
-    for (var i = 0; i < 2; i++) {
-      var r = b.pickRetention(roundExclude);
-      if (r == null) break;
+    var m = b.pickMastered(roundExclude);
+    if (m != null) {
+      roundExclude.add(m);
+      queue.push({ idx: m, kind: "mastered" });
+    }
+    var r = b.pickRetention(roundExclude);
+    if (r != null) {
       roundExclude.add(r);
       queue.push({ idx: r, kind: "retention" });
     }
@@ -1216,7 +1238,7 @@
       stateOf: function (idx) { return states.get(idx); },
       ball: ball, buildRound: buildRound, nextCard: nextCard, grade: grade,
       getQueue: function () { return queue; }, load: load, save: save,
-      kanaToRomaji: kanaToRomaji
+      kanaToRomaji: kanaToRomaji, states: states, lastQuiz: lastQuiz
     };
   }
 })();
