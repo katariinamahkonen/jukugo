@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-04.4";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-04.5";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -1203,16 +1203,37 @@
       '<div class="tip">Tip: back up your progress from <b>Settings \u2192 Backup &amp; restore</b>.</div>';
   }
 
-  // Welcome overlay; shown on every launch. "Start learning" just dismisses it.
+  function closeIntro() { var p = $("intro"); if (p && p.parentNode) p.parentNode.removeChild(p); }
+
+  // Welcome overlay; shown on every launch. Kept light: a short lead plus a
+  // primary "Start learning" and a secondary "Show instructions" that opens
+  // the full how-to view.
   function showIntro() {
-    var prev = $("intro"); if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+    closeIntro();
+    var o = document.createElement("div");
+    o.id = "intro"; o.className = "intro intro-welcome";
+    o.innerHTML = '<h1>Jukugo</h1>' +
+      '<p class="introlead">Learn to read and write the most common Japanese words, ' +
+        'a few at a time.</p>' +
+      '<button class="startbtn" id="introStart">Start learning</button>' +
+      '<button class="ghostbtn" id="introHow">Show instructions</button>';
+    document.body.appendChild(o);
+    $("introStart").onclick = closeIntro;
+    $("introHow").onclick = function () { showInstructions(); };
+  }
+
+  // Full how-to view, reachable from the welcome overlay.
+  function showInstructions() {
+    closeIntro();
     var o = document.createElement("div");
     o.id = "intro"; o.className = "intro";
-    o.innerHTML = '<h1>Jukugo</h1>' +
+    o.innerHTML = '<h1>How it works</h1>' +
       '<div class="howto">' + howToPlayHTML() + '</div>' +
-      '<button class="startbtn" id="introStart">Start learning</button>';
+      '<button class="startbtn" id="introStart">Start learning</button>' +
+      '<button class="ghostbtn" id="introBack">Back</button>';
     document.body.appendChild(o);
-    $("introStart").onclick = function () { if (o.parentNode) o.parentNode.removeChild(o); };
+    $("introStart").onclick = closeIntro;
+    $("introBack").onclick = function () { showIntro(); };
   }
 
   // ------------------------------------------------------------------- boot

@@ -173,6 +173,11 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
 .intro .startbtn { margin-top: 4px; border: 0; border-radius: 14px; padding: 16px; font-size: 17px;
   font-weight: 800; background: var(--warm); color: #0b0e1c; }
 .intro .startbtn:active { transform: translateY(1px); filter: brightness(.95); }
+.intro .introlead { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.intro .ghostbtn { border: 1px solid #2a3157; border-radius: 14px; padding: 14px; font-size: 15px;
+  font-weight: 700; background: transparent; color: var(--ink); }
+.intro .ghostbtn:active { transform: translateY(1px); filter: brightness(.95); }
+.intro-welcome { text-align: center; }
 
 /* how-to-play instructions (used in the overlay and on the Settings page) */
 .howto { display: flex; flex-direction: column; gap: 12px; }
