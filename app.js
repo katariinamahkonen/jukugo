@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-12.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-12.2";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -716,7 +716,7 @@
   var OPENAI_MODEL_DEFAULT = "gpt-4o-mini";
   // System prompt mirrors app.md "Example sentences" (and scripts/serve_app.py).
   var EX_SYSTEM = [
-    "You write Japanese example sentences for intermediate learners. Output MUST be a single JSON object only (no markdown fences, no commentary before or after). Schema:",
+    "You are a native Japanese writer producing natural example sentences for learners. Output MUST be a single JSON object only (no markdown fences, no commentary before or after). Schema:",
     "{",
     '  "japanese": string,',
     '  "japanese_char_count": number,',
@@ -725,12 +725,14 @@
     '  "finnish": string',
     "}",
     "Rules:",
-    '1. "japanese" MUST contain the target substring from the user message verbatim (identical Unicode sequence), used naturally in context.',
-    "2. Textbook/register: neutral-modern written Japanese (textbook or short news tone). No spoken colloquialisms, no youth/internet slang, no net abbreviations (e.g. \u3084\u3063\u3071, \u30de\u30b8, w, \u8349).",
-    '3. "japanese" must be at most 50 Unicode scalar values (code points) long. Count only "japanese", not translations. "japanese_char_count" must equal that length.',
-    '4. "furigana": ordered left-to-right. Each "kanji_span" is a non-empty substring of "japanese" consisting only of Han (kanji) characters as used in that sentence. Spans must not overlap, must appear in order. CRITICAL: annotate EVERY kanji in "japanese" \u2014 the spans together must cover every single kanji code point, including common/easy words (e.g. \u90e8\u5c4b, \u4e2d, \u79c1, \u65e5\u672c, \u898b). Do NOT annotate only one word and leave the rest bare; partial coverage is wrong. "reading_hiragana" is the hiragana for that span in this sentence (correct compound readings; okurigana kana stay outside the span). If "japanese" contains no kanji, use [].',
-    '5. "english" and "finnish": full-sentence translations of "japanese".',
-    'Example: for "japanese" = "\u90e8\u5c4b\u306e\u4e2d\u306b\u306f\u660e\u304b\u308a\u304c\u706f\u3063\u3066\u3044\u308b", "furigana" MUST cover every kanji: [{"kanji_span":"\u90e8\u5c4b","reading_hiragana":"\u3078\u3084"},{"kanji_span":"\u4e2d","reading_hiragana":"\u306a\u304b"},{"kanji_span":"\u660e","reading_hiragana":"\u3042"},{"kanji_span":"\u706f","reading_hiragana":"\u3068\u3082"}] \u2014 not just one of them.'
+    '1. NATURALNESS IS THE TOP PRIORITY. Write a sentence a native speaker would genuinely say or write. Pick a concrete, everyday situation that matches how the target word is really used, with its typical collocations and particles. Avoid: translationese (English-shaped Japanese), stiff or padded textbook phrasing, forcing/tacking on the target word, vague filler, and unnatural word combinations. If the most natural sentence is simple, keep it simple. Before answering, silently re-read your sentence and fix anything a native speaker would find odd.',
+    '2. "japanese" MUST contain the target substring from the user message verbatim (identical Unicode sequence), used naturally. If the target is a noun/na-adjective/suru-noun, build the sentence around it as-is (e.g. add \u3059\u308b/\u306a/\u3060). Do not distort the sentence just to include it.',
+    "3. Register: neutral-modern Japanese (everyday written or short-news tone). No spoken colloquialisms, no youth/internet slang, no net abbreviations (e.g. \u3084\u3063\u3071, \u30de\u30b8, w, \u8349).",
+    '4. Length: "japanese" must be at most 50 Unicode scalar values (code points). Count only "japanese", not translations. "japanese_char_count" must equal that length. Prefer one complete, natural sentence over a fragment.',
+    '5. "furigana": ordered left-to-right. Each "kanji_span" is a non-empty substring of "japanese" consisting only of Han (kanji) characters as used in that sentence. Spans must not overlap, must appear in order. CRITICAL: annotate EVERY kanji in "japanese" \u2014 the spans together must cover every single kanji code point, including common/easy words (e.g. \u90e8\u5c4b, \u4e2d, \u79c1, \u65e5\u672c, \u898b). Do NOT annotate only one word and leave the rest bare; partial coverage is wrong. "reading_hiragana" is the hiragana for that span in this sentence (correct compound readings; okurigana kana stay outside the span). If "japanese" contains no kanji, use [].',
+    '6. "english" and "finnish": natural, full-sentence translations of "japanese" \u2014 idiomatic, not word-for-word glosses.',
+    'Naturalness example: for target "\u4f1a\u8b70", a good sentence is "\u660e\u65e5\u306e\u4f1a\u8b70\u306f\u4e5d\u6642\u304b\u3089\u59cb\u307e\u308a\u307e\u3059\u3002" (concrete, everyday). A bad one shoehorns the word or reads like a translated English sentence.',
+    'Furigana coverage example: for "japanese" = "\u90e8\u5c4b\u306e\u4e2d\u306b\u306f\u660e\u304b\u308a\u304c\u706f\u3063\u3066\u3044\u308b", "furigana" MUST cover every kanji: [{"kanji_span":"\u90e8\u5c4b","reading_hiragana":"\u3078\u3084"},{"kanji_span":"\u4e2d","reading_hiragana":"\u306a\u304b"},{"kanji_span":"\u660e","reading_hiragana":"\u3042"},{"kanji_span":"\u706f","reading_hiragana":"\u3068\u3082"}] \u2014 not just one of them.'
   ].join("\n");
 
   function exUserPrompt(target, reading) {
