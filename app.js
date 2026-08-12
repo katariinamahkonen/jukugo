@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-04.9";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-12.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -614,7 +614,10 @@
     }
     var w = WORDS[current.idx];
     var card = h("div", "card");
-    if (current.isNew) card.appendChild(h("div", "newtag", "new word"));
+    // "new word" only in read mode: the shared last-quizzed map can't tell
+    // "first time in writing" apart without a separate write-quiz field (a stored-
+    // data schema change), so the tag is omitted entirely in write mode.
+    if (current.isNew && activeMode === "recognition") card.appendChild(h("div", "newtag", "new word"));
 
     var front = h("div", "front");
     if (activeMode === "recognition") {
@@ -655,10 +658,10 @@
     }
     view.appendChild(actions);
 
-    // Read mode only: under the grade buttons, offer an on-demand example
-    // sentence (generated via OpenAI, see below). Shown once the answer is
-    // revealed so the furigana reading doesn't spoil the recall task.
-    if (activeMode === "recognition" && step >= lastStep) {
+    // Under the grade buttons, offer an on-demand example sentence (generated via
+    // OpenAI, see below). Shown once the answer is fully revealed (read: step 1,
+    // write: kanji shown at step 2) so the furigana reading doesn't spoil recall.
+    if (step >= lastStep) {
       var exWrap = h("div", "examplewrap");
       renderExample(exWrap, w);
       view.appendChild(exWrap);
