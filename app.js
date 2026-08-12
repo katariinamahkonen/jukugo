@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-12.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-12.3";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -725,9 +725,9 @@
     '  "finnish": string',
     "}",
     "Rules:",
-    '1. NATURALNESS IS THE TOP PRIORITY. Write a sentence a native speaker would genuinely say or write. Pick a concrete, everyday situation that matches how the target word is really used, with its typical collocations and particles. Avoid: translationese (English-shaped Japanese), stiff or padded textbook phrasing, forcing/tacking on the target word, vague filler, and unnatural word combinations. If the most natural sentence is simple, keep it simple. Before answering, silently re-read your sentence and fix anything a native speaker would find odd.',
+    '1. NATURALNESS IS THE TOP PRIORITY. Write a sentence a native speaker would genuinely say or write. Pick a concrete, everyday situation that matches how the target word is really used, with its typical collocations and particles. Avoid: translationese (English-shaped Japanese), stiff or padded textbook phrasing, forcing/tacking on the target word, vague filler, and unnatural word combinations. Also avoid these clumsy learner-textbook habits: starting with \u79c1\u306f unless truly needed, overusing \u3068\u3066\u3082/\u975e\u5e38\u306b, and generic \u300c\u3053\u308c\u306f\u301c\u3067\u3059\u300d filler; use a specific, natural subject and context instead. If the most natural sentence is simple, keep it simple. Before answering, silently re-read your sentence and fix anything a native speaker would find odd.',
     '2. "japanese" MUST contain the target substring from the user message verbatim (identical Unicode sequence), used naturally. If the target is a noun/na-adjective/suru-noun, build the sentence around it as-is (e.g. add \u3059\u308b/\u306a/\u3060). Do not distort the sentence just to include it.',
-    "3. Register: neutral-modern Japanese (everyday written or short-news tone). No spoken colloquialisms, no youth/internet slang, no net abbreviations (e.g. \u3084\u3063\u3071, \u30de\u30b8, w, \u8349).",
+    "3. Register: natural everyday Japanese, standard polite form (\u3067\u3059/\u307e\u3059) by default, or plain form when that reads more naturally. Not terse news-headline style, not overly formal. No spoken colloquialisms, no youth/internet slang, no net abbreviations (e.g. \u3084\u3063\u3071, \u30de\u30b8, w, \u8349).",
     '4. Length: "japanese" must be at most 50 Unicode scalar values (code points). Count only "japanese", not translations. "japanese_char_count" must equal that length. Prefer one complete, natural sentence over a fragment.',
     '5. "furigana": ordered left-to-right. Each "kanji_span" is a non-empty substring of "japanese" consisting only of Han (kanji) characters as used in that sentence. Spans must not overlap, must appear in order. CRITICAL: annotate EVERY kanji in "japanese" \u2014 the spans together must cover every single kanji code point, including common/easy words (e.g. \u90e8\u5c4b, \u4e2d, \u79c1, \u65e5\u672c, \u898b). Do NOT annotate only one word and leave the rest bare; partial coverage is wrong. "reading_hiragana" is the hiragana for that span in this sentence (correct compound readings; okurigana kana stay outside the span). If "japanese" contains no kanji, use [].',
     '6. "english" and "finnish": natural, full-sentence translations of "japanese" \u2014 idiomatic, not word-for-word glosses.',
