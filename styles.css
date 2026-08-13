@@ -14,7 +14,7 @@
   /* unified stage ladder (grey -> aqua -> green); button colour = the stage a
      word lands in for the current mode, so read-mastered is the shared hinge. */
   --stage-rl: #868e96;   /* read learning  (grey)      */
-  --stage-rd: #66d9e8;   /* read learned   (light aqua) */
+  --stage-rd: #4d79cc;   /* read learned   (violet-blue, darker than rm) */
   --stage-rm: #46afe3;   /* read mastered  (hinge)     */
   --stage-wd: #12b886;   /* write learned  (teal)      */
   --stage-wm: #3dbf56;   /* write mastered (green)     */
@@ -48,7 +48,7 @@ body {
 
 /* hud */
 #hud { display: flex; flex-direction: column; gap: 8px; padding: 6px 14px 10px; flex-shrink: 0; }
-.stats { display: flex; flex-direction: row-reverse; gap: 5px; }
+.stats { display: flex; flex-direction: row; gap: 5px; }
 .statbox { flex: 1 1 0; min-width: 0; background: var(--panel); border-radius: 12px;
   padding: 8px 3px 6px; display: flex; flex-direction: column; align-items: center; }
 .statnum { font-size: 24px; font-weight: 800; line-height: 1; }

@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-12.3";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-13.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -515,11 +515,16 @@
 
   function renderHud() {
     var c = stageCounts();
+    // Displayed buckets: read-mastered folds in writing-learning (rm + wl).
+    // Counts are cumulative right-to-left (each = itself + every later stage), so
+    // e.g. "read learned" = every word that has reached at least the learned
+    // stage. "read learning" is the exception: shown as its own current count.
+    var rm = c.rm + c.wl, wd = c.wd, wm = c.wm;
     $("sRL").textContent = c.rl;
-    $("sRD").textContent = c.rd;
-    $("sRM").textContent = c.rm + c.wl;   // mastered reading, pending writing
-    $("sWD").textContent = c.wd;
-    $("sWM").textContent = c.wm;
+    $("sRD").textContent = c.rd + rm + wd + wm;
+    $("sRM").textContent = rm + wd + wm;
+    $("sWD").textContent = wd + wm;
+    $("sWM").textContent = wm;
     var prog = currentTab === "progress";
     $("modeRead").classList.toggle("on", !prog && activeMode === "recognition");
     $("modeWrite").classList.toggle("on", !prog && activeMode === "production");
@@ -700,12 +705,13 @@
     var btn = h("button", "exbtn", data ? "New example sentence" : "Get example sentence");
     btn.disabled = loading;
     btn.onclick = function () { fetchExample(current.idx, w); };
-    container.appendChild(btn);
+    // Sentence (and any status message) first, then the button below it.
+    if (data) container.appendChild(exampleCard(data));  // show saved even on error
     if (loading) { container.appendChild(h("div", "exmsg", "Generating\u2026")); }
     else if (st && st.status === "error") {
       container.appendChild(h("div", "exmsg err", st.error || "Failed to get example."));
     }
-    if (data) container.appendChild(exampleCard(data));  // show saved even on error
+    container.appendChild(btn);
   }
 
   // OpenAI is called DIRECTLY from the browser using the user's own key (stored
@@ -1044,7 +1050,7 @@
   // The five stage series and their colours (must match the HUD / styles.css).
   var STAGE_SERIES = [
     { key: "rl", label: "read learning", color: "#868e96" },
-    { key: "rd", label: "read learned", color: "#66d9e8" },
+    { key: "rd", label: "read learned", color: "#4d79cc" },
     { key: "rm", label: "read mastered", color: "#46afe3" },
     { key: "wd", label: "write learned", color: "#12b886" },
     { key: "wm", label: "write mastered", color: "#3dbf56" }
@@ -1181,7 +1187,7 @@
           '<div class="choices">' +
             '<div class="choice"><span class="chip2" style="background:#868e96">Keep quizzing</span>' +
               '<span>didn\u2019t know it \u2014 stays at <b>learning</b>, comes back right away</span></div>' +
-            '<div class="choice"><span class="chip2" style="background:#66d9e8">Ask again tomorrow</span>' +
+            '<div class="choice"><span class="chip2" style="background:#4d79cc">Ask again tomorrow</span>' +
               '<span>knew it \u2014 up to <b>learned</b>, returns in about a day</span></div>' +
             '<div class="choice"><span class="chip2" style="background:#46afe3">Ask again next month</span>' +
               '<span>knew it well \u2014 up to <b>mastered</b>, returns in about 4 weeks</span></div>' +
@@ -1191,7 +1197,7 @@
           '<div class="flow">' +
             '<span class="chip2" style="background:#868e96">learning</span>' +
             '<span class="arrow">\u2192</span>' +
-            '<span class="chip2" style="background:#66d9e8">learned</span>' +
+            '<span class="chip2" style="background:#4d79cc">learned</span>' +
             '<span class="arrow">\u2192</span>' +
             '<span class="chip2" style="background:#46afe3">mastered</span>' +
             '<span class="arrow">\u2192</span>' +
