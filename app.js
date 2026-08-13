@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-13.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-13.2";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -388,6 +388,12 @@
     } else {
       return false;
     }
+    // Backfill: an already-started word with no recorded last-quiz time predates
+    // timestamp tracking (legacy/migrated data). Mark it quizzed-long-ago
+    // (sentinel 1ms) so it isn't mislabeled as a brand-new word and is treated as
+    // due for review. Freshly introduced words carry an explicit 0 (set by
+    // addLearning) and stay "new" until first graded.
+    states.forEach(function (st, idx) { if (!lastQuiz.has(idx)) lastQuiz.set(idx, 1); });
     rebuildAll();
     return true;
   }
