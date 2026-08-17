@@ -48,7 +48,7 @@ body {
 
 /* hud */
 #hud { display: flex; flex-direction: column; gap: 8px; padding: 6px 14px 10px; flex-shrink: 0; }
-.stats { display: flex; flex-direction: row; gap: 5px; }
+.stats { display: flex; flex-direction: row-reverse; gap: 5px; }
 .statbox { flex: 1 1 0; min-width: 0; background: var(--panel); border-radius: 12px;
   padding: 8px 3px 6px; display: flex; flex-direction: column; align-items: center; }
 .statnum { font-size: 24px; font-weight: 800; line-height: 1; }

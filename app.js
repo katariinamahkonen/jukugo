@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-13.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-17.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -663,7 +663,8 @@
       show.onclick = function () { step++; render(); };
       actions.appendChild(show);
     } else {
-      actions.appendChild(gradeBtn("Ask again next month", "know g-know"));
+      var knowLabel = (activeMode === "recognition") ? "Move to write practice" : "Ask again next month";
+      actions.appendChild(gradeBtn(knowLabel, "know g-know"));
       actions.appendChild(gradeBtn("Ask again tomorrow", "good g-good"));
       actions.appendChild(gradeBtn("Keep quizzing", "hard g-hard"));
     }
