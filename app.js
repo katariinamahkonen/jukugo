@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-20.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-20.3";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -44,29 +44,58 @@
   // unlocked kanji are done, so rare idioms don't appear early. [decision]
   var RARE_RANK = 30000;
 
-  // Cards hidden from learners (beginner-facing cleanup at level 1): secondary
-  // single-kanji ON-readings whose basic KUN card is kept (the ON reading still
-  // shows up inside compounds), redundant grammar-variant spellings, and
-  // duplicate-spelling second readings. Keyed by surface\u0001reading. Hidden
-  // words are never introduced as new and are excluded from counts/retention;
-  // array indices are left untouched so saved progress needs no migration.
+  // Cards hidden from learners (beginner-facing cleanup): secondary single-kanji
+  // ON-readings whose basic KUN card is kept (the ON reading still shows up inside
+  // compounds), redundant grammar-variant spellings, duplicate-spelling second
+  // readings, and a couple of redundant number+counter words. Keyed by
+  // surface\u0001reading. Hidden words are never introduced as new and are excluded
+  // from counts/retention; array indices are left untouched so saved progress
+  // needs no migration. (Number/date compounds are hidden by pattern below.)
   var EXCLUDE = new Set([
     "\u4e0a\u0001\u3058\u3087\u3046", "\u4e00\u0001\u3072\u3068", "\u4e0b\u0001\u3082\u3068",
     "\u4e2d\u0001\u3061\u3085\u3046", "\u529b\u0001\u308a\u3087\u304f", "\u65e5\u0001\u306b\u3061",
     "\u5b66\u0001\u304c\u304f", "\u5927\u0001\u3060\u3044", "\u5c0f\u0001\u3057\u3087\u3046",
     "\u5927\u304d\u306a\u0001\u304a\u304a\u304d\u306a", "\u5c0f\u3055\u306a\u0001\u3061\u3044\u3055\u306a",
     "\u4e00\u65e5\u0001\u3064\u3044\u305f\u3061", "\u5927\u304d\u3055\u0001\u304a\u304a\u304d\u3055",
-    "\u91d1\u0001\u304d\u3093", "\u4eba\u0001\u306b\u3093", "\u5e74\u0001\u306d\u3093"
+    "\u91d1\u0001\u304d\u3093", "\u4eba\u0001\u306b\u3093", "\u5e74\u0001\u306d\u3093",
+    // bucket 2: duplicate single-kanji readings (keep one per kanji; the useful
+    // distinct on-yomi \u6642/\u3058, \u5206/\u3075\u3093, \u65b9/\u307b\u3046 are deliberately kept).
+    "\u9593\u0001\u307e", "\u9593\u0001\u304b\u3093", "\u5f8c\u0001\u3054", "\u524d\u0001\u305c\u3093",
+    "\u98a8\u0001\u3075\u3046", "\u6570\u0001\u3059\u3046", "\u5e97\u0001\u3066\u3093",
+    // redundant number+counter words (2\u4eba \u3075\u305f\u308a and 1\u5e74 are kept)
+    "\u4e09\u4eba\u0001\u3055\u3093\u306b\u3093", "\u4e09\u5e74\u0001\u3055\u3093\u306d\u3093"
   ]);
+
+  // Level overrides (bucket 3): push a few too-early words to a later stage rather
+  // than hiding them. \u751f\u305a\u308b is a literary duplicate of \u751f\u3058\u308b \u2014 defer past the
+  // beginner stages (level > 3). Keyed by surface\u0001reading -> level.
+  var LEVEL_OVERRIDE = { "\u751f\u305a\u308b\u0001\u3057\u3087\u3046\u305a\u308b": 4 };
+
+  // Bucket 1: hide transparent number/date compounds (they flood early levels).
+  // Hidden: <n>\u6708 months, multi-kanji-number <n>\u65e5 dates (e.g. \u5341\u4e94\u65e5), and pure
+  // multi-digit numbers (e.g. \u5341\u4e00). Kept: single digits, \u767e/\u5343/\u4e07, native
+  // counters \u4e00\u3064/\u4e8c\u3064/\u4e09\u3064, small irregular dates \u4e09\u65e5/\u4e94\u65e5/\u516b\u65e5, and lexical
+  // number words (\u4e00\u756a, \u4e00\u65b9, \u4e00\u4f53, \u4e00\u751f, \u2026).
+  var NUMK = "\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u4e07";
+  function allNum(s) { for (var i = 0; i < s.length; i++) { if (NUMK.indexOf(s[i]) < 0) return false; } return s.length > 0; }
+  function isNumberClutter(s) {
+    if (/^[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u4e07]+\u6708$/.test(s)) return true;   // months
+    var dm = s.match(/^([\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u4e07]+)\u65e5$/);   // <n>\u65e5 dates
+    if (dm && Array.from(dm[1]).length >= 2) return true;                    // only multi-kanji numbers
+    if (allNum(s) && Array.from(s).length >= 2) return true;                 // pure multi-digit numbers
+    return false;
+  }
 
   // --- per-word derived fields + level histogram ---------------------------
   var levelCount = {};                 // level -> count (excludes hidden cards)
   for (var i = 0; i < N; i++) {
     var w = WORDS[i];
+    var wkey = w.s + "\u0001" + w.r;
+    if (LEVEL_OVERRIDE.hasOwnProperty(wkey)) w.l = LEVEL_OVERRIDE[wkey];
     w._k = Array.from(w.s ? w.k : "");           // kanji as array (cache)
     w._rank = (w.c == null) ? INF : w.c;         // unranked -> Infinity
     w._klen = w.s.length;
-    w._excluded = EXCLUDE.has(w.s + "\u0001" + w.r);
+    w._excluded = EXCLUDE.has(wkey) || isNumberClutter(w.s);
     if (!w._excluded) levelCount[w.l] = (levelCount[w.l] || 0) + 1;
     if (w.l > MAX_LEVEL) MAX_LEVEL = w.l;
   }
