@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-17.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-20.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -670,14 +670,16 @@
     }
     view.appendChild(actions);
 
-    // Under the grade buttons, offer an on-demand example sentence (generated via
-    // OpenAI, see below). Shown once the answer is fully revealed (read: step 1,
-    // write: kanji shown at step 2) so the furigana reading doesn't spoil recall.
-    if (step >= lastStep) {
-      var exWrap = h("div", "examplewrap");
-      renderExample(exWrap, w);
-      view.appendChild(exWrap);
-    }
+    // Example sentence: the button is always available, and its English/Finnish
+    // translation shows from the start as a hint. The Japanese reveals in step
+    // with the quiz: read = after "Show answer" (step 1); write = target-as-kana
+    // after "Show hiragana" (step 1), then full kanji after "Show kanji" (step 2).
+    var exMode;
+    if (activeMode === "recognition") exMode = (step >= 1) ? "full" : "hidden";
+    else exMode = (step >= 2) ? "full" : (step === 1) ? "kana" : "hidden";
+    var exWrap = h("div", "examplewrap");
+    renderExample(exWrap, w, exMode);
+    view.appendChild(exWrap);
   }
 
   // ---- example sentences (app.md "Example sentences")
@@ -702,18 +704,16 @@
     } catch (e) { /* quota/full: keep in memory only */ }
   }
 
-  function renderExample(container, w) {
+  function renderExample(container, w, mode) {
     var st = (exampleState && exampleState.idx === current.idx) ? exampleState : null;
-    var cached = exampleCache[exKey(w)] || null;
+    var data = exampleCache[exKey(w)] || null;           // cache-first (offline)
     var loading = !!(st && st.status === "loading");
-    var data = cached;                                   // cache-first (offline)
-    // A word that has been queried before shows its saved sentence instantly and
-    // the button offers a fresh generation; otherwise it's a first-time fetch.
-    var btn = h("button", "exbtn", data ? "New example sentence" : "Get example sentence");
+    // A word queried before offers a fresh generation; otherwise a first fetch.
+    var btn = h("button", "exbtn", data ? "Get new example sentence" : "Get example sentence");
     btn.disabled = loading;
     btn.onclick = function () { fetchExample(current.idx, w); };
-    // Sentence (and any status message) first, then the button below it.
-    if (data) container.appendChild(exampleCard(data));  // show saved even on error
+    // Sentence/translations first (honouring the reveal mode), button last.
+    if (data) container.appendChild(exampleCard(data, w, mode));  // show saved even on error
     if (loading) { container.appendChild(h("div", "exmsg", "Generating\u2026")); }
     else if (st && st.status === "error") {
       container.appendChild(h("div", "exmsg err", st.error || "Failed to get example."));
@@ -846,9 +846,12 @@
     });
   }
 
-  function exampleCard(d) {
+  // mode: "full" = Japanese with furigana; "kana" = target word shown as its
+  // reading, rest with furigana; "hidden" = translations only (Japanese omitted).
+  function exampleCard(d, w, mode) {
     var box = h("div", "example");
-    box.appendChild(furiganaEl(d.japanese, d.furigana || []));
+    if (mode === "full") box.appendChild(furiganaEl(d.japanese, d.furigana || []));
+    else if (mode === "kana") box.appendChild(sentenceKanaEl(d, w));
     if (d.english) box.appendChild(h("div", "ex-en", d.english));
     if (settings.showFinnish && d.finnish) box.appendChild(h("div", "ex-fi", d.finnish));
     return box;
@@ -873,6 +876,51 @@
     }
     if (pos < jp.length) wrap.appendChild(document.createTextNode(jp.slice(pos)));
     return wrap;
+  }
+
+  // Split a sentence into ordered tokens ({t:'text'|'ruby', s, e, read}) using
+  // the furigana spans (same span-finding logic as furiganaEl).
+  function exTokens(jp, fur) {
+    var toks = [], pos = 0;
+    for (var i = 0; i < fur.length; i++) {
+      var span = fur[i] && fur[i].kanji_span, read = fur[i] && fur[i].reading_hiragana;
+      if (!span) continue;
+      var at = jp.indexOf(span, pos);
+      if (at < 0) continue;
+      if (at > pos) toks.push({ t: "text", s: pos, e: at });
+      toks.push({ t: "ruby", s: at, e: at + span.length, read: read || "" });
+      pos = at + span.length;
+    }
+    if (pos < jp.length) toks.push({ t: "text", s: pos, e: jp.length });
+    return toks;
+  }
+
+  // Write-mode "Show hiragana" view: the target word rendered as its reading
+  // (kana/romaji per setting), the rest of the sentence with normal furigana.
+  // Rebuilds a japanese string + furigana list with the target region swapped
+  // for the reading, then reuses furiganaEl.
+  function sentenceKanaEl(d, w) {
+    var jp = d.japanese || "";
+    var at = jp.indexOf(w.s);
+    if (at < 0) return furiganaEl(jp, d.furigana || []);   // target not found: show full
+    var end = at + w.s.length, kana = readingText(w);
+    var toks = exTokens(jp, d.furigana || []);
+    var newJp = "", newFur = [], inserted = false;
+    for (var i = 0; i < toks.length; i++) {
+      var tk = toks[i], s = tk.s, e = tk.e;
+      if (s < at) {                                        // portion before the target
+        var le = Math.min(e, at), seg = jp.slice(s, le);
+        if (tk.t === "ruby" && le === e) newFur.push({ kanji_span: seg, reading_hiragana: tk.read });
+        newJp += seg;
+      }
+      if (e > at && s < end && !inserted) { newJp += kana; inserted = true; }  // target -> reading
+      if (e > end) {                                       // portion after the target
+        var rs = Math.max(s, end), seg2 = jp.slice(rs, e);
+        if (tk.t === "ruby" && rs === s) newFur.push({ kanji_span: seg2, reading_hiragana: tk.read });
+        newJp += seg2;
+      }
+    }
+    return furiganaEl(newJp, newFur);
   }
 
   function gradeBtn(label, cls) {
