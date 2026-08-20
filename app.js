@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-20.3";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-20.4";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -63,7 +63,13 @@
     "\u9593\u0001\u307e", "\u9593\u0001\u304b\u3093", "\u5f8c\u0001\u3054", "\u524d\u0001\u305c\u3093",
     "\u98a8\u0001\u3075\u3046", "\u6570\u0001\u3059\u3046", "\u5e97\u0001\u3066\u3093",
     // redundant number+counter words (2\u4eba \u3075\u305f\u308a and 1\u5e74 are kept)
-    "\u4e09\u4eba\u0001\u3055\u3093\u306b\u3093", "\u4e09\u5e74\u0001\u3055\u3093\u306d\u3093"
+    "\u4e09\u4eba\u0001\u3055\u3093\u306b\u3093", "\u4e09\u5e74\u0001\u3055\u3093\u306d\u3093",
+    // X\u3059\u308b / X\u3057\u3066 pairs: keep the more frequent form, hide the rarer one.
+    "\u5bfe\u3057\u3066\u0001\u305f\u3044\u3057\u3066",          // keep \u5bfe\u3059\u308b
+    "\u306b\u5bfe\u3057\u3066\u0001\u306b\u305f\u3044\u3057\u3066",      // keep \u306b\u5bfe\u3059\u308b
+    "\u6c7a\u3059\u308b\u0001\u3051\u3063\u3059\u308b",          // keep \u6c7a\u3057\u3066
+    "\u969b\u3057\u3066\u0001\u3055\u3044\u3057\u3066",          // keep \u969b\u3059\u308b
+    "\u4ecb\u3057\u3066\u0001\u304b\u3044\u3057\u3066"           // keep \u4ecb\u3059\u308b
   ]);
 
   // Level overrides (bucket 3): push a few too-early words to a later stage rather
