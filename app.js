@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-20.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-20.2";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -670,13 +670,16 @@
     }
     view.appendChild(actions);
 
-    // Example sentence: the button is always available, and its English/Finnish
-    // translation shows from the start as a hint. The Japanese reveals in step
-    // with the quiz: read = after "Show answer" (step 1); write = target-as-kana
-    // after "Show hiragana" (step 1), then full kanji after "Show kanji" (step 2).
+    // Example sentence: the button is always available. What shows depends on the
+    // quiz step:
+    //   read  step 0: plain sentence (kanji, no furigana), translations hidden
+    //   read  step 1: sentence with furigana + translations (after "Show answer")
+    //   write step 0: translations only (Japanese hidden)
+    //   write step 1: target word as kana + translations (after "Show hiragana")
+    //   write step 2: full sentence with furigana + translations ("Show kanji")
     var exMode;
-    if (activeMode === "recognition") exMode = (step >= 1) ? "full" : "hidden";
-    else exMode = (step >= 2) ? "full" : (step === 1) ? "kana" : "hidden";
+    if (activeMode === "recognition") exMode = (step >= 1) ? "full" : "bare";
+    else exMode = (step >= 2) ? "full" : (step === 1) ? "kana" : "transonly";
     var exWrap = h("div", "examplewrap");
     renderExample(exWrap, w, exMode);
     view.appendChild(exWrap);
@@ -846,14 +849,20 @@
     });
   }
 
-  // mode: "full" = Japanese with furigana; "kana" = target word shown as its
-  // reading, rest with furigana; "hidden" = translations only (Japanese omitted).
+  // mode -> what to render:
+  //   "full"     Japanese with furigana + translations
+  //   "kana"     target word as its reading, rest with furigana + translations
+  //   "bare"     plain Japanese (kanji, no furigana), NO translations
+  //   "transonly" translations only (Japanese omitted)
   function exampleCard(d, w, mode) {
     var box = h("div", "example");
     if (mode === "full") box.appendChild(furiganaEl(d.japanese, d.furigana || []));
     else if (mode === "kana") box.appendChild(sentenceKanaEl(d, w));
-    if (d.english) box.appendChild(h("div", "ex-en", d.english));
-    if (settings.showFinnish && d.finnish) box.appendChild(h("div", "ex-fi", d.finnish));
+    else if (mode === "bare") box.appendChild(h("div", "jp ex-jp", d.japanese || ""));
+    if (mode !== "bare") {                                  // hide translations in bare mode
+      if (d.english) box.appendChild(h("div", "ex-en", d.english));
+      if (settings.showFinnish && d.finnish) box.appendChild(h("div", "ex-fi", d.finnish));
+    }
     return box;
   }
 
