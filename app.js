@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-20.5";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-21.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -557,16 +557,13 @@
 
   function renderHud() {
     var c = stageCounts();
-    // Displayed buckets: read-mastered folds in writing-learning (rm + wl).
-    // Counts are cumulative right-to-left (each = itself + every later stage), so
-    // e.g. "read learned" = every word that has reached at least the learned
-    // stage. "read learning" is the exception: shown as its own current count.
-    var rm = c.rm + c.wl, wd = c.wd, wm = c.wm;
+    // Plain per-stage counts. "read mastered" folds in writing-learning (rm + wl),
+    // matching the five-bucket partition used elsewhere.
     $("sRL").textContent = c.rl;
-    $("sRD").textContent = c.rd + rm + wd + wm;
-    $("sRM").textContent = rm + wd + wm;
-    $("sWD").textContent = wd + wm;
-    $("sWM").textContent = wm;
+    $("sRD").textContent = c.rd;
+    $("sRM").textContent = c.rm + c.wl;
+    $("sWD").textContent = c.wd;
+    $("sWM").textContent = c.wm;
     var prog = currentTab === "progress";
     $("modeRead").classList.toggle("on", !prog && activeMode === "recognition");
     $("modeWrite").classList.toggle("on", !prog && activeMode === "production");
