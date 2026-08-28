@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-21.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-28.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -650,9 +650,16 @@
     view.innerHTML = "";
     if (!current) current = nextCard();
     if (!current) {
-      var msg = (activeMode === "production")
-        ? "No words to write yet \u2014 master some words in read mode first."
-        : "Nothing to quiz yet.";
+      var msg;
+      if (activeMode === "production") {
+        var wp = balls.production;
+        var hasWriting = wp.learning.size + wp.learned.size + wp.mastered.size > 0;
+        msg = hasWriting
+          ? "All caught up \u2014 please master some more words in reading."
+          : "No words to write yet \u2014 master some words in read mode first.";
+      } else {
+        msg = "Nothing to quiz yet.";
+      }
       view.appendChild(h("div", "empty", msg));
       return;
     }
