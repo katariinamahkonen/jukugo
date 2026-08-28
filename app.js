@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-28.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-08-28.3";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -1074,6 +1074,9 @@
     view.appendChild(readingRow());
     view.appendChild(h("div", "sethint",
       "Show the reading as kana or as r\u014dmaji (long vowels marked with macrons, e.g. \u304c\u3063\u3053\u3046 \u2192 gakk\u014d)."));
+    view.appendChild(finnishRow());
+    view.appendChild(h("div", "sethint",
+      "Show Finnish translations alongside English on the cards and example sentences."));
     view.appendChild(poolRow("Max words learning (read)", true));
     view.appendChild(poolRow("Max words learning (write)", false));
     view.appendChild(h("div", "sethint",
@@ -1174,6 +1177,23 @@
     roma.onclick = function () { if (!settings.romaji) { settings.romaji = true; save(); refresh(); render(); } };
     refresh();
     seg.appendChild(hira); seg.appendChild(roma);
+    row.appendChild(seg);
+    return row;
+  }
+  function finnishRow() {
+    var row = h("div", "setrow");
+    row.appendChild(h("span", "setlbl", "Finnish translations"));
+    var seg = h("div", "seg");
+    var off = h("button", "segbtn", "Off");
+    var on = h("button", "segbtn", "On");
+    function refresh() {
+      off.className = "segbtn" + (settings.showFinnish ? "" : " on");
+      on.className = "segbtn" + (settings.showFinnish ? " on" : "");
+    }
+    off.onclick = function () { if (settings.showFinnish) { settings.showFinnish = false; save(); refresh(); render(); } };
+    on.onclick = function () { if (!settings.showFinnish) { settings.showFinnish = true; save(); refresh(); render(); } };
+    refresh();
+    seg.appendChild(off); seg.appendChild(on);
     row.appendChild(seg);
     return row;
   }
@@ -1365,9 +1385,6 @@
     $("modeRead").onclick = function () { setMode("recognition"); };
     $("modeWrite").onclick = function () { setMode("production"); };
     $("modeProgress").onclick = function () { showProgress(); };
-    var fi = $("fiToggle");
-    fi.checked = settings.showFinnish;
-    fi.onchange = function () { settings.showFinnish = fi.checked; save(); render(); };
 
     render();
     showIntro();   // shown on every launch

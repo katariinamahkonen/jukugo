@@ -43,9 +43,6 @@ body {
 .modes { margin-left: auto; display: flex; background: var(--panel); border-radius: 999px; padding: 3px; }
 .mode { border: 0; background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; padding: 7px 12px; border-radius: 999px; }
 .mode.on { background: var(--warm); color: #0b0e1c; }
-.fi { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
-.fi input { accent-color: var(--accent); }
-
 /* full-width Write | Read bar below the top bar, aligned with the stat boxes:
    Write fills the left half, Read the right half (same padding/gap as .stats). */
 #modebar { display: flex; gap: 5px; padding: 4px 14px 0; flex-shrink: 0; }
@@ -206,7 +203,6 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
   #topbar { gap: 8px; padding: 10px 12px 6px; }
   .brand { font-size: 13px; }
   .mode { font-size: 12px; padding: 6px 10px; }
-  .fi { font-size: 11px; }
   #hud { padding: 4px 12px 8px; }
   .statbox { padding: 7px 2px 5px; border-radius: 10px; }
   .statnum { font-size: 20px; }
