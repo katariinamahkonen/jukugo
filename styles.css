@@ -99,21 +99,24 @@ body {
   font-size: 13px; font-weight: 700; padding: 0; cursor: pointer; white-space: nowrap; }
 .empty { text-align: center; color: var(--muted); }
 
-/* actions — stacked vertically, full width; fixed height so the card doesn't jump on flip */
-.actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; width: 100%; min-height: 178px; flex-shrink: 0; }
-.actions button { width: 100%; border: 0; border-radius: 14px; padding: 16px 10px; font-size: 16px; font-weight: 700; color: #0b0e1c; }
-/* the lone Show-answer button fills the whole action area (= three grade buttons) */
-.actions .show { flex: 1; }
+/* actions — grade buttons sit in a single horizontal row (compact height); the
+   lone Show-answer button fills the row. min-height keeps the card from jumping. */
+.actions { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 6px; margin-top: 14px; width: 100%; min-height: 84px; flex-shrink: 0; }
+.actions button { flex: 1 1 0; min-width: 0; border: 0; border-radius: 12px; padding: 8px 4px; font-size: 12.5px; font-weight: 700; line-height: 1.2; color: #0b0e1c; }
+.actions .show { flex: 1; font-size: 16px; padding: 16px 10px; }
 .show { background: var(--reveal); color: #0b0e1c; }
 .grade { color: #0b0e1c; }
-/* grade button colour = the stage the word lands in for the current mode.
-   reading: Not yet->learning, Pretty good->learned, Know it->mastered.
-   writing: Not yet->read-mastered (baseline), Pretty good->learned, Know it->mastered. */
+/* grade button colour = the stage the word lands in for the current mode. "week"
+   lands in the same LEARNED stage as "tomorrow", shown a shade lighter.
+   reading: Keep quizzing->learning, tomorrow/week->learned, Move on->mastered.
+   writing: Keep quizzing->read-mastered (baseline), tomorrow/week->learned, know->mastered. */
 .actions.read  .g-hard { background: var(--stage-rl); }
 .actions.read  .g-good { background: var(--stage-rd); }
+.actions.read  .g-week { background: var(--stage-rd); filter: brightness(1.22); }
 .actions.read  .g-know { background: var(--stage-rm); }
 .actions.write .g-hard { background: var(--stage-rm); }
 .actions.write .g-good { background: var(--stage-wd); }
+.actions.write .g-week { background: var(--stage-wd); filter: brightness(1.22); }
 .actions.write .g-know { background: var(--stage-wm); }
 button:active { transform: translateY(1px); filter: brightness(.95); }
 
@@ -215,13 +218,15 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
   .reading { font-size: 20px; }
   .reading.big { font-size: 26px; }
   .gloss .en { font-size: 16px; }
-  .actions { min-height: 156px; margin-top: 12px; gap: 8px; }
-  .actions button { padding: 13px 8px; font-size: 15px; }
+  .actions { min-height: 78px; margin-top: 12px; gap: 5px; }
+  .actions button { padding: 8px 3px; font-size: 11.5px; }
+  .actions .show { font-size: 15px; padding: 14px 8px; }
 }
 @media (max-width: 360px) {
   .modes { padding: 2px; }
   .mode { font-size: 11px; padding: 6px 8px; }
   .statnum { font-size: 18px; }
   .big { font-size: 40px; }
-  .actions button { padding: 12px 8px; font-size: 14px; }
+  .actions button { padding: 7px 2px; font-size: 11px; }
+  .actions .show { font-size: 14px; padding: 12px 8px; }
 }

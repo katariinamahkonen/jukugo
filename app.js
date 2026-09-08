@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-08.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-08.2";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -38,6 +38,7 @@
   }
   var MAX_LEVEL = 8;   // recomputed from data below
   var RETENTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't re-review a LEARNED word within 24h
+  var WEEK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;  // "Ask again next week": stay learned, defer ~1 week
   var MASTERED_COOLDOWN_MS = 28 * 24 * 60 * 60 * 1000; // re-quiz a MASTERED word every ~4 weeks
   // Words with BCCWJ rank worse than this (or unranked) are "rare": they are
   // deferred in selection (§8 Phase C) until all common words of the currently
@@ -121,6 +122,8 @@
   var W_LEARNING = "w_learning", W_LEARNED = "w_learned", W_MASTERED = "w_mastered";
   var states = new Map();   // idx -> one of the six states above (source of truth)
   var lastQuiz = new Map(); // idx -> lastQuizzedAt ms (a word is active in one phase)
+  var dueAt = new Map();    // idx -> explicit next-due ms (overrides the default
+                            // retention cooldown; set by "Ask again next week")
 
   // A Ball holds the derived, per-phase view (sets + kanji connectivity + size).
   function Ball(phase) {
@@ -349,7 +352,9 @@
     this.learned.forEach(function (i) {
       if (exclude.has(i) || WORDS[i]._excluded) return;
       var t = self.last.has(i) ? self.last.get(i) : 0;
-      if (now - t >= RETENTION_COOLDOWN_MS) pool.push(i);
+      // An explicit due time ("Ask again next week") overrides the default 24h.
+      var ready = dueAt.has(i) ? (now >= dueAt.get(i)) : (now - t >= RETENTION_COOLDOWN_MS);
+      if (ready) pool.push(i);
     });
     if (!pool.length) return null;
     return pool[(Math.random() * pool.length) | 0];
@@ -408,10 +413,11 @@
     activeMode = raw.activeMode || "recognition";
     if (raw.settings) settings = raw.settings;
     migrateSettings();
-    states.clear(); lastQuiz.clear();
+    states.clear(); lastQuiz.clear(); dueAt.clear();
     if (raw.schemaVersion >= 3 && raw.states) {
       for (var idx in raw.states) states.set(+idx, raw.states[idx]);
       if (raw.lastQuizzedAt) for (var k in raw.lastQuizzedAt) lastQuiz.set(+k, raw.lastQuizzedAt[k]);
+      if (raw.dueAt) for (var kd in raw.dueAt) dueAt.set(+kd, raw.dueAt[kd]);
       unlockedLevel = raw.unlockedLevel || 1;
       progress = raw.progress && raw.progress.dailyStages ? raw.progress : { dailyStages: {} };
     } else if (raw.schemaVersion >= 2 && raw.states) {
@@ -463,12 +469,13 @@
   }
 
   function save() {
-    var st = {}, last = {};
+    var st = {}, last = {}, due = {};
     states.forEach(function (s, idx) { st[idx] = s; });
     lastQuiz.forEach(function (t, idx) { if (states.has(idx)) last[idx] = t; });
+    dueAt.forEach(function (t, idx) { if (states.has(idx)) due[idx] = t; });
     var out = {
       schemaVersion: 3, activeMode: activeMode, settings: settings,
-      states: st, lastQuizzedAt: last,
+      states: st, lastQuizzedAt: last, dueAt: due,
       unlockedLevel: balls.recognition.unlocked, progress: progress
     };
     try { localStorage.setItem(KEY, JSON.stringify(out)); } catch (e) {}
@@ -510,12 +517,16 @@
     return queue.shift();
   }
 
-  function grade(card, g) {            // g: 'know'|'good'|'hard'
-    var b = ball(), idx = card.idx;
+  function grade(card, g) {            // g: 'know'|'good'|'week'|'hard'
+    var b = ball(), idx = card.idx, now = Date.now();
     if (g === "know") b.enterBall(idx, "mastered");
-    else if (g === "good") b.enterBall(idx, "learned");
+    else if (g === "good" || g === "week") b.enterBall(idx, "learned");
     else b.toLearning(idx);            // hard
-    b.last.set(idx, Date.now());
+    b.last.set(idx, now);
+    // "week" keeps the word learned but defers its next review ~1 week; every
+    // other grade uses the default schedule, so drop any prior override.
+    if (g === "week") dueAt.set(idx, now + WEEK_COOLDOWN_MS);
+    else dueAt.delete(idx);
     recordDailyStages();               // snapshot per-stage counts for the curve
     save();
   }
@@ -705,6 +716,7 @@
     } else {
       var knowLabel = (activeMode === "recognition") ? "Move to write practice" : "Ask again next month";
       actions.appendChild(gradeBtn(knowLabel, "know g-know"));
+      actions.appendChild(gradeBtn("Ask again next week", "week g-week"));
       actions.appendChild(gradeBtn("Ask again tomorrow", "good g-good"));
       actions.appendChild(gradeBtn("Keep quizzing", "hard g-hard"));
     }
@@ -1033,7 +1045,9 @@
 
   function gradeBtn(label, cls) {
     var b = h("button", "grade " + cls, label);
-    var g = cls.indexOf("know") >= 0 ? "know" : cls.indexOf("good") >= 0 ? "good" : "hard";
+    var g = cls.indexOf("know") >= 0 ? "know"
+          : cls.indexOf("week") >= 0 ? "week"
+          : cls.indexOf("good") >= 0 ? "good" : "hard";
     b.onclick = function () { grade(current, g); current = null; step = 0; render(); };
     return b;
   }
