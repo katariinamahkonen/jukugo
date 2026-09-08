@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-08.4";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-08.5";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -1026,32 +1026,47 @@
   // for the reading, then reuses furiganaEl.
   function sentenceKanaEl(d, w) {
     var jp = d.japanese || "";
-    // Use the exact substring in the sentence (conjugated verbs differ from the
-    // dictionary form w.s); fall back to w.s for older cached sentences.
-    var region = (d.target_used && jp.indexOf(d.target_used) >= 0) ? d.target_used : w.s;
-    var at = jp.indexOf(region);
-    if (at < 0) return furiganaEl(jp, d.furigana || []);   // target not found: show full
-    var end = at + region.length;
-    var kana = d.target_reading_hiragana
-      ? (settings.romaji ? kanaToRomaji(d.target_reading_hiragana) : d.target_reading_hiragana)
-      : readingText(w);
-    var toks = exTokens(jp, d.furigana || []);
-    var newJp = "", newFur = [], inserted = false;
+    var fur = d.furigana || [];
+    // Where is the target? Prefer the exact conjugated substring the model
+    // reported (target_used); else the dictionary form w.s. May be unknown for a
+    // conjugated verb whose target_used is missing (older/partial responses) —
+    // in that case we fall back to matching the target's kanji directly.
+    var region = (d.target_used && jp.indexOf(d.target_used) >= 0) ? d.target_used
+               : (jp.indexOf(w.s) >= 0 ? w.s : null);
+    var at = region ? jp.indexOf(region) : -1;
+    var end = region ? at + region.length : -1;
+    // The set of kanji that make up the target word (fallback matcher).
+    var tKanji = {};
+    for (var c = 0; c < w.s.length; c++) if (isKanjiChar(w.s[c])) tKanji[w.s[c]] = true;
+
+    // Render the sentence: the target's kanji spans are shown as plain kana (so
+    // the kanji you must write stays hidden); every other kanji keeps its ruby
+    // furigana; okurigana/particles (already kana) are left untouched. This hides
+    // the target correctly whatever conjugation it appears in.
+    var wrap = h("div", "jp ex-jp");
+    var toks = exTokens(jp, fur);
     for (var i = 0; i < toks.length; i++) {
-      var tk = toks[i], s = tk.s, e = tk.e;
-      if (s < at) {                                        // portion before the target
-        var le = Math.min(e, at), seg = jp.slice(s, le);
-        if (tk.t === "ruby" && le === e) newFur.push({ kanji_span: seg, reading_hiragana: tk.read });
-        newJp += seg;
+      var tk = toks[i], seg = jp.slice(tk.s, tk.e);
+      if (tk.t === "text") { wrap.appendChild(document.createTextNode(seg)); continue; }
+      // ruby token: is this kanji span part of the target?
+      var isTarget;
+      if (region != null) {
+        isTarget = (tk.s >= at && tk.e <= end);            // inside the located target
+      } else {
+        isTarget = seg.length > 0;                          // else: all-kanji-of-target
+        for (var k = 0; k < seg.length; k++) if (!tKanji[seg[k]]) { isTarget = false; break; }
       }
-      if (e > at && s < end && !inserted) { newJp += kana; inserted = true; }  // target -> reading
-      if (e > end) {                                       // portion after the target
-        var rs = Math.max(s, end), seg2 = jp.slice(rs, e);
-        if (tk.t === "ruby" && rs === s) newFur.push({ kanji_span: seg2, reading_hiragana: tk.read });
-        newJp += seg2;
+      if (isTarget) {                                       // hide: show reading as kana
+        wrap.appendChild(document.createTextNode(settings.romaji ? kanaToRomaji(tk.read) : tk.read));
+      } else {                                              // keep: kanji with furigana
+        var ruby = document.createElement("ruby");
+        ruby.appendChild(document.createTextNode(seg));
+        var rt = document.createElement("rt"); rt.textContent = tk.read || "";
+        ruby.appendChild(rt);
+        wrap.appendChild(ruby);
       }
     }
-    return furiganaEl(newJp, newFur);
+    return wrap;
   }
 
   function gradeBtn(label, cls) {
