@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-08.3";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-08.4";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -885,8 +885,13 @@
         clean.push({ kanji_span: it.kanji_span, reading_hiragana: it.reading_hiragana });
       }
     }
+    // Remember the exact substring that realizes the target (conjugated verbs
+    // are not the dictionary form) and its reading, so the write-mode "Show
+    // hiragana" step can locate and hide the target correctly.
+    var region = used || (jp.indexOf(target) >= 0 ? target : "");
     return { japanese: jp, japanese_char_count: Array.from(jp).length,
-      furigana: clean, english: obj.english || "", finnish: obj.finnish || "" };
+      furigana: clean, target_used: region, target_reading_hiragana: usedReading || "",
+      english: obj.english || "", finnish: obj.finnish || "" };
   }
 
   // Effective key/model: a value typed into Settings wins; otherwise fall back
@@ -1021,9 +1026,15 @@
   // for the reading, then reuses furiganaEl.
   function sentenceKanaEl(d, w) {
     var jp = d.japanese || "";
-    var at = jp.indexOf(w.s);
+    // Use the exact substring in the sentence (conjugated verbs differ from the
+    // dictionary form w.s); fall back to w.s for older cached sentences.
+    var region = (d.target_used && jp.indexOf(d.target_used) >= 0) ? d.target_used : w.s;
+    var at = jp.indexOf(region);
     if (at < 0) return furiganaEl(jp, d.furigana || []);   // target not found: show full
-    var end = at + w.s.length, kana = readingText(w);
+    var end = at + region.length;
+    var kana = d.target_reading_hiragana
+      ? (settings.romaji ? kanaToRomaji(d.target_reading_hiragana) : d.target_reading_hiragana)
+      : readingText(w);
     var toks = exTokens(jp, d.furigana || []);
     var newJp = "", newFur = [], inserted = false;
     for (var i = 0; i < toks.length; i++) {
