@@ -74,7 +74,8 @@ body {
 #view { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
   display: flex; flex-direction: column;
   justify-content: flex-start;
-  padding: 8px 16px 16px; }
+  /* extra bottom padding (~1cm) shortens the word card and lifts content up */
+  padding: 8px 16px 54px; }
 .card {
   background: linear-gradient(180deg, var(--panel2), var(--panel));
   border: 1px solid #2a3157; border-radius: 20px;
@@ -212,7 +213,7 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
   .statbox { padding: 7px 2px 5px; border-radius: 10px; }
   .statnum { font-size: 20px; }
   .statlabel { font-size: 8px; }
-  #view { padding: 6px 12px 12px; }
+  #view { padding: 6px 12px 50px; }
   .card { min-height: 0; padding: 18px 14px; border-radius: 18px; }
   .big { font-size: 46px; }
   .reading { font-size: 20px; }
