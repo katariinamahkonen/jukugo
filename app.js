@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-08.7";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-08.8";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -979,31 +979,40 @@
   function strEndsWith(s, suf) { return suf.length <= s.length && s.slice(s.length - suf.length) === suf; }
 
   // Fix a common model mistake: okurigana pulled INTO the target's ruby reading
-  // (e.g. 問/とう instead of 問/と with う as okurigana). We know the target's
-  // okurigana from its surface (w.s / target_used), so we can trim the target
-  // kanji span's reading precisely, without touching other words (e.g. 何/なに).
+  // (e.g. 問/とう instead of 問/と with う as okurigana). We derive the kanji
+  // stem's reading from the dictionary entry (surface w.s + reading w.r), which
+  // is conjugation-independent, so it also fixes 問います etc. Only spans equal to
+  // the target's kanji stem are touched, so other words (e.g. 何/なに) are safe.
   function correctedFurigana(d, w) {
     var jp = d.japanese || "";
     var fur = (d.furigana || []).map(function (x) {
       return { kanji_span: x.kanji_span, reading_hiragana: x.reading_hiragana };
     });
+    var stem = kanjiPrefix(w.s);                    // leading kanji of the dictionary form
+    if (!stem) return fur;
+    var okuri = w.s.slice(stem.length);             // kana okurigana in the dictionary form
+    var dr = normKana(w.r || "");
+    // Only simple "kanji + kana okurigana" words (okuri all-kana, reading ends
+    // with it). Compound-verb stems (e.g. 話し合う) and okurigana-less words skip.
+    if (!okuri || /[^\u3040-\u309f]/.test(okuri) || !strEndsWith(dr, okuri)) return fur;
+    var kanjiReading = dr.slice(0, dr.length - okuri.length);   // reading of the kanji stem
+    if (!kanjiReading) return fur;
+    // Locate the target's own occurrence so we only fix that 問, never a 問 that
+    // belongs to another word (e.g. 問題). The target starts with its kanji stem.
     var region = (d.target_used && jp.indexOf(d.target_used) >= 0) ? d.target_used
                : (jp.indexOf(w.s) >= 0 ? w.s : null);
-    if (region == null) return fur;
-    var at = jp.indexOf(region);
-    var stem = kanjiPrefix(region);                 // leading kanji of the target
-    if (!stem) return fur;
-    var okuri = region.slice(stem.length);          // kana tail (okurigana)
-    var tr = normKana(d.target_reading_hiragana || "");
-    if (!tr || !okuri || !strEndsWith(tr, okuri)) return fur;
-    var kanjiReading = tr.slice(0, tr.length - okuri.length);   // reading of the kanji stem
-    if (!kanjiReading) return fur;
+    var at = region != null ? jp.indexOf(region) : -1;
+    var pos = 0, loneIdx = [];
     for (var i = 0; i < fur.length; i++) {
-      if (fur[i].kanji_span === stem && jp.indexOf(stem, at) === at) {
-        fur[i].reading_hiragana = kanjiReading;
-        break;
-      }
+      var sp = jp.indexOf(fur[i].kanji_span, pos);
+      if (sp < 0) continue;
+      pos = sp + fur[i].kanji_span.length;
+      if (fur[i].kanji_span !== stem) continue;
+      if (at >= 0) { if (sp === at) { fur[i].reading_hiragana = kanjiReading; return fur; } }
+      else loneIdx.push(i);
     }
+    // Unknown target position: only safe when there's exactly one lone-kanji span.
+    if (at < 0 && loneIdx.length === 1) fur[loneIdx[0]].reading_hiragana = kanjiReading;
     return fur;
   }
 
