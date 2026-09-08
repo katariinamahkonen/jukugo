@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-08.5";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-08.6";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -803,6 +803,7 @@
     '6. "english" and "finnish": natural, full-sentence translations of "japanese" \u2014 idiomatic, not word-for-word glosses.',
     '7. VERBS: conjugate the target verb naturally rather than leaving it in dictionary form. Prefer the polite -\u307e\u3059 form or the -\u3066/-\u3067 (te) form; other natural conjugations (past, negative, etc.) are also fine. Example: for target "\u98df\u3079\u308b", write "\u6bce\u671d\u30d1\u30f3\u3092\u98df\u3079\u307e\u3059\u3002" or "\u30d1\u30f3\u3092\u98df\u3079\u3066\u304b\u3089\u51fa\u304b\u3051\u307e\u3059\u3002" \u2014 not "\u98df\u3079\u308b" bare.',
     '8. READING MATCH (critical for single kanji): the target\u2019s kanji MUST be pronounced with the reading given as the reading hint in the user message. E.g. target "\u4e0a" with hint "\u3046\u3048" must be used read as \u3046\u3048 (e.g. \u673a\u306e\u4e0a\u306b\u3042\u308a\u307e\u3059) \u2014 NEVER as \u3058\u3087\u3046 (\u4e0a\u624b) or \u3042\u304c\u308b. If that reading does not fit, change the sentence, not the reading.',
+    '8b. SINGLE-KANJI ON-YOMI: if the target is a single kanji whose reading is an on-yomi that normally occurs only inside compounds, use it INSIDE a natural compound word that is actually read with that reading. E.g. for target "\u65b0" with hint "\u3057\u3093", use it in \u65b0\u805e (\u3057\u3093\u3076\u3093), \u65b0\u5e74 (\u3057\u3093\u306d\u3093), \u65b0\u4eba (\u3057\u3093\u3058\u3093). You MUST NOT substitute a different word that merely shares the kanji with another reading \u2014 e.g. do NOT use \u65b0\u3057\u3044 (\u3042\u305f\u3089\u3057\u3044). Never attach okurigana to the single kanji to form a kun-reading word. Set "target_used" to that compound (or the bare kanji) and "target_reading_hiragana" to its reading.',
     '9. "target_used": the exact substring of "japanese" (identical Unicode) that realizes the target, conjugated exactly as it appears in the sentence. "target_reading_hiragana": the hiragana reading of "target_used" as pronounced in this sentence (for a verb, the reading of the whole conjugated form).',
     'Naturalness example: for target "\u4f1a\u8b70", a good sentence is "\u660e\u65e5\u306e\u4f1a\u8b70\u306f\u4e5d\u6642\u304b\u3089\u59cb\u307e\u308a\u307e\u3059\u3002" (concrete, everyday). A bad one shoehorns the word or reads like a translated English sentence.',
     'Furigana coverage example: for "japanese" = "\u90e8\u5c4b\u306e\u4e2d\u306b\u306f\u660e\u304b\u308a\u304c\u706f\u3063\u3066\u3044\u308b", "furigana" MUST cover every kanji: [{"kanji_span":"\u90e8\u5c4b","reading_hiragana":"\u3078\u3084"},{"kanji_span":"\u4e2d","reading_hiragana":"\u306a\u304b"},{"kanji_span":"\u660e","reading_hiragana":"\u3042"},{"kanji_span":"\u706f","reading_hiragana":"\u3068\u3082"}] \u2014 not just one of them.'
@@ -860,11 +861,21 @@
     }
     if (!present) return null;
 
-    // --- reading match for single-kanji targets (fixes wrong on/kun reading)
+    // --- reading match for single-kanji targets (fixes wrong on/kun reading,
+    // e.g. card 新/しん must NOT be satisfied by 新しい read あたらしい). The kanji
+    // may be used standalone or inside an all-kanji compound (where an on-yomi
+    // like しん naturally lives), but never as the stem of an okurigana word.
     if (singleKanji && reading) {
       var want = normKana(reading);
       var rr = normKana(usedReading);
-      if (rr) {
+      if (used) {
+        if (/[\u3040-\u30ff]/.test(used)) return null;       // kanji + kana okurigana -> different (kun) word
+        if (used === target) {                               // standalone kanji
+          if (rr && rr !== want) return null;
+        } else {                                             // all-kanji compound
+          if (rr && rr.indexOf(want) < 0) return null;       // target reading must appear in the compound reading
+        }
+      } else if (rr) {
         if (rr !== want) return null;                        // model used a different reading
       } else {
         // no reported reading: fall back to furigana for a span equal to the kanji
