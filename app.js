@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-08.6";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-08.7";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -799,7 +799,7 @@
     '2. Include the target naturally. If the target is a noun/na-adjective/suru-noun, use it verbatim (identical Unicode sequence) and build the sentence around it as-is (e.g. add \u3059\u308b/\u306a/\u3060). If the target is a verb, DO NOT keep the plain dictionary form: conjugate it the way a native speaker naturally would here \u2014 PREFER the polite -\u307e\u3059 form or the -\u3066/-\u3067 (te) form, which usually read most naturally in an example sentence (see rule 7). Never distort the sentence just to include the target.',
     "3. Register: natural everyday Japanese, standard polite form (\u3067\u3059/\u307e\u3059) by default, or plain form when that reads more naturally. Not terse news-headline style, not overly formal. No spoken colloquialisms, no youth/internet slang, no net abbreviations (e.g. \u3084\u3063\u3071, \u30de\u30b8, w, \u8349).",
     '4. Length: "japanese" must be at most 50 Unicode scalar values (code points). Count only "japanese", not translations. "japanese_char_count" must equal that length. Prefer one complete, natural sentence over a fragment.',
-    '5. "furigana": ordered left-to-right. Each "kanji_span" is a non-empty substring of "japanese" consisting only of Han (kanji) characters as used in that sentence. Spans must not overlap, must appear in order. CRITICAL: annotate EVERY kanji in "japanese" \u2014 the spans together must cover every single kanji code point, including common/easy words (e.g. \u90e8\u5c4b, \u4e2d, \u79c1, \u65e5\u672c, \u898b). Do NOT annotate only one word and leave the rest bare; partial coverage is wrong. "reading_hiragana" is the hiragana for that span in this sentence (correct compound readings; okurigana kana stay outside the span). If "japanese" contains no kanji, use [].',
+    '5. "furigana": ordered left-to-right. Each "kanji_span" is a non-empty substring of "japanese" consisting only of Han (kanji) characters as used in that sentence. Spans must not overlap, must appear in order. CRITICAL: annotate EVERY kanji in "japanese" \u2014 the spans together must cover every single kanji code point, including common/easy words (e.g. \u90e8\u5c4b, \u4e2d, \u79c1, \u65e5\u672c, \u898b). Do NOT annotate only one word and leave the rest bare; partial coverage is wrong. "reading_hiragana" is the hiragana for that span in this sentence (correct compound readings; okurigana kana stay OUTSIDE the span). E.g. for \u554f\u3046 the span is "\u554f" with reading "\u3068" (NOT "\u3068\u3046") and the \u3046 stays as plain kana; for \u98df\u3079\u308b the span is "\u98df" with reading "\u305f" and \u3079\u308b stays as kana. If "japanese" contains no kanji, use [].',
     '6. "english" and "finnish": natural, full-sentence translations of "japanese" \u2014 idiomatic, not word-for-word glosses.',
     '7. VERBS: conjugate the target verb naturally rather than leaving it in dictionary form. Prefer the polite -\u307e\u3059 form or the -\u3066/-\u3067 (te) form; other natural conjugations (past, negative, etc.) are also fine. Example: for target "\u98df\u3079\u308b", write "\u6bce\u671d\u30d1\u30f3\u3092\u98df\u3079\u307e\u3059\u3002" or "\u30d1\u30f3\u3092\u98df\u3079\u3066\u304b\u3089\u51fa\u304b\u3051\u307e\u3059\u3002" \u2014 not "\u98df\u3079\u308b" bare.',
     '8. READING MATCH (critical for single kanji): the target\u2019s kanji MUST be pronounced with the reading given as the reading hint in the user message. E.g. target "\u4e0a" with hint "\u3046\u3048" must be used read as \u3046\u3048 (e.g. \u673a\u306e\u4e0a\u306b\u3042\u308a\u307e\u3059) \u2014 NEVER as \u3058\u3087\u3046 (\u4e0a\u624b) or \u3042\u304c\u308b. If that reading does not fit, change the sentence, not the reading.',
@@ -976,6 +976,37 @@
     });
   }
 
+  function strEndsWith(s, suf) { return suf.length <= s.length && s.slice(s.length - suf.length) === suf; }
+
+  // Fix a common model mistake: okurigana pulled INTO the target's ruby reading
+  // (e.g. 問/とう instead of 問/と with う as okurigana). We know the target's
+  // okurigana from its surface (w.s / target_used), so we can trim the target
+  // kanji span's reading precisely, without touching other words (e.g. 何/なに).
+  function correctedFurigana(d, w) {
+    var jp = d.japanese || "";
+    var fur = (d.furigana || []).map(function (x) {
+      return { kanji_span: x.kanji_span, reading_hiragana: x.reading_hiragana };
+    });
+    var region = (d.target_used && jp.indexOf(d.target_used) >= 0) ? d.target_used
+               : (jp.indexOf(w.s) >= 0 ? w.s : null);
+    if (region == null) return fur;
+    var at = jp.indexOf(region);
+    var stem = kanjiPrefix(region);                 // leading kanji of the target
+    if (!stem) return fur;
+    var okuri = region.slice(stem.length);          // kana tail (okurigana)
+    var tr = normKana(d.target_reading_hiragana || "");
+    if (!tr || !okuri || !strEndsWith(tr, okuri)) return fur;
+    var kanjiReading = tr.slice(0, tr.length - okuri.length);   // reading of the kanji stem
+    if (!kanjiReading) return fur;
+    for (var i = 0; i < fur.length; i++) {
+      if (fur[i].kanji_span === stem && jp.indexOf(stem, at) === at) {
+        fur[i].reading_hiragana = kanjiReading;
+        break;
+      }
+    }
+    return fur;
+  }
+
   // mode -> what to render:
   //   "full"     Japanese with furigana + translations
   //   "kana"     target word as its reading, rest with furigana + translations
@@ -983,7 +1014,7 @@
   //   "transonly" translations only (Japanese omitted)
   function exampleCard(d, w, mode) {
     var box = h("div", "example");
-    if (mode === "full") box.appendChild(furiganaEl(d.japanese, d.furigana || []));
+    if (mode === "full") box.appendChild(furiganaEl(d.japanese, correctedFurigana(d, w)));
     else if (mode === "kana") box.appendChild(sentenceKanaEl(d, w));
     else if (mode === "bare") box.appendChild(h("div", "jp ex-jp", d.japanese || ""));
     if (mode !== "bare") {                                  // hide translations in bare mode
@@ -1037,7 +1068,7 @@
   // for the reading, then reuses furiganaEl.
   function sentenceKanaEl(d, w) {
     var jp = d.japanese || "";
-    var fur = d.furigana || [];
+    var fur = correctedFurigana(d, w);
     // Where is the target? Prefer the exact conjugated substring the model
     // reported (target_used); else the dictionary form w.s. May be unknown for a
     // conjugated verb whose target_used is missing (older/partial responses) —
