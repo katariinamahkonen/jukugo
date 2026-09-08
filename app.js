@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-08-28.4";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-08.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -777,34 +777,93 @@
     '  "japanese": string,',
     '  "japanese_char_count": number,',
     '  "furigana": [ { "kanji_span": string, "reading_hiragana": string } ],',
+    '  "target_used": string,',
+    '  "target_reading_hiragana": string,',
     '  "english": string,',
     '  "finnish": string',
     "}",
     "Rules:",
     '1. NATURALNESS IS THE TOP PRIORITY. Write a sentence a native speaker would genuinely say or write. Pick a concrete, everyday situation that matches how the target word is really used, with its typical collocations and particles. Avoid: translationese (English-shaped Japanese), stiff or padded textbook phrasing, forcing/tacking on the target word, vague filler, and unnatural word combinations. Also avoid these clumsy learner-textbook habits: starting with \u79c1\u306f unless truly needed, overusing \u3068\u3066\u3082/\u975e\u5e38\u306b, and generic \u300c\u3053\u308c\u306f\u301c\u3067\u3059\u300d filler; use a specific, natural subject and context instead. If the most natural sentence is simple, keep it simple. Before answering, silently re-read your sentence and fix anything a native speaker would find odd.',
-    '2. "japanese" MUST contain the target substring from the user message verbatim (identical Unicode sequence), used naturally. If the target is a noun/na-adjective/suru-noun, build the sentence around it as-is (e.g. add \u3059\u308b/\u306a/\u3060). Do not distort the sentence just to include it.',
+    '2. Include the target naturally. If the target is a noun/na-adjective/suru-noun, use it verbatim (identical Unicode sequence) and build the sentence around it as-is (e.g. add \u3059\u308b/\u306a/\u3060). If the target is a verb, DO NOT keep the plain dictionary form: conjugate it the way a native speaker naturally would here \u2014 PREFER the polite -\u307e\u3059 form or the -\u3066/-\u3067 (te) form, which usually read most naturally in an example sentence (see rule 7). Never distort the sentence just to include the target.',
     "3. Register: natural everyday Japanese, standard polite form (\u3067\u3059/\u307e\u3059) by default, or plain form when that reads more naturally. Not terse news-headline style, not overly formal. No spoken colloquialisms, no youth/internet slang, no net abbreviations (e.g. \u3084\u3063\u3071, \u30de\u30b8, w, \u8349).",
     '4. Length: "japanese" must be at most 50 Unicode scalar values (code points). Count only "japanese", not translations. "japanese_char_count" must equal that length. Prefer one complete, natural sentence over a fragment.',
     '5. "furigana": ordered left-to-right. Each "kanji_span" is a non-empty substring of "japanese" consisting only of Han (kanji) characters as used in that sentence. Spans must not overlap, must appear in order. CRITICAL: annotate EVERY kanji in "japanese" \u2014 the spans together must cover every single kanji code point, including common/easy words (e.g. \u90e8\u5c4b, \u4e2d, \u79c1, \u65e5\u672c, \u898b). Do NOT annotate only one word and leave the rest bare; partial coverage is wrong. "reading_hiragana" is the hiragana for that span in this sentence (correct compound readings; okurigana kana stay outside the span). If "japanese" contains no kanji, use [].',
     '6. "english" and "finnish": natural, full-sentence translations of "japanese" \u2014 idiomatic, not word-for-word glosses.',
+    '7. VERBS: conjugate the target verb naturally rather than leaving it in dictionary form. Prefer the polite -\u307e\u3059 form or the -\u3066/-\u3067 (te) form; other natural conjugations (past, negative, etc.) are also fine. Example: for target "\u98df\u3079\u308b", write "\u6bce\u671d\u30d1\u30f3\u3092\u98df\u3079\u307e\u3059\u3002" or "\u30d1\u30f3\u3092\u98df\u3079\u3066\u304b\u3089\u51fa\u304b\u3051\u307e\u3059\u3002" \u2014 not "\u98df\u3079\u308b" bare.',
+    '8. READING MATCH (critical for single kanji): the target\u2019s kanji MUST be pronounced with the reading given as the reading hint in the user message. E.g. target "\u4e0a" with hint "\u3046\u3048" must be used read as \u3046\u3048 (e.g. \u673a\u306e\u4e0a\u306b\u3042\u308a\u307e\u3059) \u2014 NEVER as \u3058\u3087\u3046 (\u4e0a\u624b) or \u3042\u304c\u308b. If that reading does not fit, change the sentence, not the reading.',
+    '9. "target_used": the exact substring of "japanese" (identical Unicode) that realizes the target, conjugated exactly as it appears in the sentence. "target_reading_hiragana": the hiragana reading of "target_used" as pronounced in this sentence (for a verb, the reading of the whole conjugated form).',
     'Naturalness example: for target "\u4f1a\u8b70", a good sentence is "\u660e\u65e5\u306e\u4f1a\u8b70\u306f\u4e5d\u6642\u304b\u3089\u59cb\u307e\u308a\u307e\u3059\u3002" (concrete, everyday). A bad one shoehorns the word or reads like a translated English sentence.',
     'Furigana coverage example: for "japanese" = "\u90e8\u5c4b\u306e\u4e2d\u306b\u306f\u660e\u304b\u308a\u304c\u706f\u3063\u3066\u3044\u308b", "furigana" MUST cover every kanji: [{"kanji_span":"\u90e8\u5c4b","reading_hiragana":"\u3078\u3084"},{"kanji_span":"\u4e2d","reading_hiragana":"\u306a\u304b"},{"kanji_span":"\u660e","reading_hiragana":"\u3042"},{"kanji_span":"\u706f","reading_hiragana":"\u3068\u3082"}] \u2014 not just one of them.'
   ].join("\n");
 
   function exUserPrompt(target, reading) {
-    return "Target word/phrase to include verbatim in the Japanese sentence: " + target +
-      "\nOptional reading hint (hiragana): " + (reading || "") +
+    return "Target word/phrase: " + target +
+      "\nRequired reading of the target (hiragana): " + (reading || "") +
+      "\nThe target's kanji must be pronounced with exactly this reading (rule 8). " +
+      "If the target is a verb, conjugate it naturally \u2014 the -\u307e\u3059 or -\u3066/-\u3067 form is preferred (rules 2 & 7); do not leave it in dictionary form." +
       "\n\nGenerate one example sentence JSON as specified in the system message.";
   }
 
-  // Validate + normalize (furigana kept lenient: it is display-only, and models
-  // often include okurigana in a span or skip a kanji). Returns clean obj or null.
-  function exValidate(obj, target) {
+  // --- helpers for example validation
+  function isKanjiChar(ch) { return /[\u3400-\u9fff\uf900-\ufaff]/.test(ch); }
+  function kanjiPrefix(s) {                                  // leading run of kanji
+    var out = "";
+    for (var i = 0; i < s.length; i++) { if (isKanjiChar(s[i])) out += s[i]; else break; }
+    return out;
+  }
+  // Verb heuristic from the English gloss (JMdict-style "to ..." senses). Combined
+  // with a reading that ends in an う-row kana (dictionary form okurigana).
+  function isVerbWord(w) {
+    var e = (w.e || "").trim();
+    return (/^to\s+\S/i.test(e) || /;\s*to\s+\S/i.test(e)) && /[\u3046\u304f\u3050\u3059\u3064\u306c\u3076\u3080\u308b]$/.test(w.r || "");
+  }
+  function normKana(s) { return (s || "").trim().replace(/\u30fc/g, ""); }
+
+  // Validate + normalize. Two goals beyond the basics:
+  //  - verbs may appear conjugated (‑ます/‑て/etc.), not just the dictionary form;
+  //  - a single-kanji target must be read with the card's reading (not another
+  //    on/kun reading of the same glyph).
+  // furigana stays lenient (display-only). Returns clean obj or null.
+  function exValidate(obj, w) {
     if (!obj || typeof obj !== "object") return null;
     var jp = obj.japanese;
     if (typeof jp !== "string" || !jp) return null;
-    if (jp.indexOf(target) < 0) return null;                 // target verbatim
     if (Array.from(jp).length > 50) return null;             // <=50 code points
+    var target = w.s, reading = w.r || "";
+    var singleKanji = Array.from(target).length === 1 && isKanjiChar(target);
+    var verb = isVerbWord(w);
+    var used = (typeof obj.target_used === "string" && obj.target_used &&
+                jp.indexOf(obj.target_used) >= 0) ? obj.target_used : null;
+    var usedReading = (typeof obj.target_reading_hiragana === "string") ? obj.target_reading_hiragana : "";
+
+    // --- target present? (verbs: accept any conjugation)
+    var present = false;
+    if (jp.indexOf(target) >= 0) present = true;             // base/dictionary form used
+    else if (verb) {
+      var ks = kanjiPrefix(target);
+      if (used) present = true;                              // model reported the conjugated form
+      else if (ks && jp.indexOf(ks) >= 0) present = true;    // same kanji stem present
+    } else if (used) {
+      present = true;                                        // rare non-verb fallback
+    }
+    if (!present) return null;
+
+    // --- reading match for single-kanji targets (fixes wrong on/kun reading)
+    if (singleKanji && reading) {
+      var want = normKana(reading);
+      var rr = normKana(usedReading);
+      if (rr) {
+        if (rr !== want) return null;                        // model used a different reading
+      } else {
+        // no reported reading: fall back to furigana for a span equal to the kanji
+        var f0 = Array.isArray(obj.furigana) ? obj.furigana : [];
+        for (var k = 0; k < f0.length; k++) {
+          if (f0[k] && f0[k].kanji_span === target &&
+              normKana(f0[k].reading_hiragana) !== want) return null;
+        }
+      }
+    }
+
     var fur = Array.isArray(obj.furigana) ? obj.furigana : [];
     var clean = [];
     for (var i = 0; i < fur.length; i++) {
@@ -844,12 +903,12 @@
   }
 
   // Direct call with a single retry on failed validation.
-  function generateExampleDirect(target, reading) {
-    return openaiDirect(target, reading).then(function (o) {
-      var v = exValidate(o, target);
+  function generateExampleDirect(w) {
+    return openaiDirect(w.s, w.r).then(function (o) {
+      var v = exValidate(o, w);
       if (v) return v;
-      return openaiDirect(target, reading).then(function (o2) {
-        var v2 = exValidate(o2, target);
+      return openaiDirect(w.s, w.r).then(function (o2) {
+        var v2 = exValidate(o2, w);
         if (v2) return v2;
         throw new Error("The model's sentence didn't pass the checks. Try again.");
       });
@@ -862,7 +921,7 @@
     var hasKey = !!apiKey();
     var p;
     if (hasKey) {
-      p = generateExampleDirect(w.s, w.r);
+      p = generateExampleDirect(w);
     } else {
       p = fetch("api/example", {
         method: "POST", headers: { "Content-Type": "application/json" },
