@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-08.8";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-09.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -1071,43 +1071,26 @@
     return toks;
   }
 
-  // Write-mode "Show hiragana" view: the target word rendered as its reading
-  // (kana/romaji per setting), the rest of the sentence with normal furigana.
-  // Rebuilds a japanese string + furigana list with the target region swapped
-  // for the reading, then reuses furiganaEl.
+  // Write-mode "Show hiragana" view: any kanji span that CONTAINS a target kanji
+  // is rendered as its reading (kana/romaji per setting) so the kanji you must
+  // write is hidden EVERYWHERE it appears (including inside compounds); all other
+  // kanji keep their ruby furigana; okurigana/particles (already kana) stay.
   function sentenceKanaEl(d, w) {
     var jp = d.japanese || "";
     var fur = correctedFurigana(d, w);
-    // Where is the target? Prefer the exact conjugated substring the model
-    // reported (target_used); else the dictionary form w.s. May be unknown for a
-    // conjugated verb whose target_used is missing (older/partial responses) —
-    // in that case we fall back to matching the target's kanji directly.
-    var region = (d.target_used && jp.indexOf(d.target_used) >= 0) ? d.target_used
-               : (jp.indexOf(w.s) >= 0 ? w.s : null);
-    var at = region ? jp.indexOf(region) : -1;
-    var end = region ? at + region.length : -1;
-    // The set of kanji that make up the target word (fallback matcher).
+    // The set of kanji that make up the target word.
     var tKanji = {};
     for (var c = 0; c < w.s.length; c++) if (isKanjiChar(w.s[c])) tKanji[w.s[c]] = true;
 
-    // Render the sentence: the target's kanji spans are shown as plain kana (so
-    // the kanji you must write stays hidden); every other kanji keeps its ruby
-    // furigana; okurigana/particles (already kana) are left untouched. This hides
-    // the target correctly whatever conjugation it appears in.
     var wrap = h("div", "jp ex-jp");
     var toks = exTokens(jp, fur);
     for (var i = 0; i < toks.length; i++) {
       var tk = toks[i], seg = jp.slice(tk.s, tk.e);
       if (tk.t === "text") { wrap.appendChild(document.createTextNode(seg)); continue; }
-      // ruby token: is this kanji span part of the target?
-      var isTarget;
-      if (region != null) {
-        isTarget = (tk.s >= at && tk.e <= end);            // inside the located target
-      } else {
-        isTarget = seg.length > 0;                          // else: all-kanji-of-target
-        for (var k = 0; k < seg.length; k++) if (!tKanji[seg[k]]) { isTarget = false; break; }
-      }
-      if (isTarget) {                                       // hide: show reading as kana
+      // hide this span if it contains any target kanji
+      var hasTarget = false;
+      for (var k = 0; k < seg.length; k++) if (tKanji[seg[k]]) { hasTarget = true; break; }
+      if (hasTarget) {                                      // hide: show reading as kana
         wrap.appendChild(document.createTextNode(settings.romaji ? kanaToRomaji(tk.read) : tk.read));
       } else {                                              // keep: kanji with furigana
         var ruby = document.createElement("ruby");
