@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-15.6";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-15.7";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -569,11 +569,10 @@
     renderCard(view);
   }
 
-  // Simple counts of words at each stage of the single linear path (§6). Shown
-  // identically in both views. mastered_reading folds in learning_writing, so the
-  // five buckets partition every started word:
-  //   learning_reading | learned_reading | mastered_reading(+learning_writing)
-  //   | learned_writing | mastered_writing
+  // Simple counts of words at each stage of the single linear path (§6). Each
+  // started word falls in exactly one of the seven buckets:
+  //   read: learning(rl) | learned(rd) | mastered(rm)
+  //   write: learning(wl) | learned-next-day(wd) | learned-next-week(ww) | mastered(wm)
   function stageCounts() {
     var c = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
     states.forEach(function (st, idx) {
@@ -595,21 +594,21 @@
 
   function renderHud() {
     var c = stageCounts();
-    // Plain per-stage counts. "read mastered" folds in writing-learning (rm + wl),
-    // matching the five-bucket partition used elsewhere.
+    // Read-mastered (rm) and write-learning (wl) are now separate buckets: rm
+    // shows only in the read view, wl only in the write view.
     $("sRL").textContent = c.rl;
     $("sRD").textContent = c.rd;
-    $("sRM").textContent = c.rm + c.wl;
+    $("sRM").textContent = c.rm;
+    $("sWL").textContent = c.wl;
     $("sWD").textContent = c.wd;
     $("sWW").textContent = c.ww;
     $("sWM").textContent = c.wm;
     var prog = currentTab === "progress";
-    // Show only the relevant buckets per view (read = 3 lowest, write = 4
-    // highest; the shared middle bucket appears in both, labelled differently).
-    // The progress tab shows all six to match the chart.
+    // Show only the relevant buckets per view (read = new/learning/mastered,
+    // write = write-learning/next-day/next-week/mastered). Progress shows all.
     var hudView = prog ? "progress" : (activeMode === "recognition" ? "read" : "write");
     $("stats").className = "stats view-" + hudView;
-    $("sRMlabel").textContent = (hudView === "write") ? "learning" : "mastered";
+    $("sRMlabel").textContent = prog ? "read mastered" : "mastered";
     $("modeRead").classList.toggle("on", !prog && activeMode === "recognition");
     $("modeWrite").classList.toggle("on", !prog && activeMode === "production");
     $("modeProgress").classList.toggle("on", prog);
@@ -621,7 +620,7 @@
   function recordDailyStages() {
     var c = stageCounts();
     progress.dailyStages[ymdOf(Date.now())] =
-      { rl: c.rl, rd: c.rd, rm: c.rm + c.wl, wd: c.wd, ww: c.ww, wm: c.wm };
+      { rl: c.rl, rd: c.rd, rm: c.rm, wl: c.wl, wd: c.wd, ww: c.ww, wm: c.wm };
   }
 
   // Modified-Hepburn romaji from a kana reading (readings are 100% clean kana).
@@ -1324,7 +1323,8 @@
   var STAGE_SERIES = [
     { key: "rl", label: "new", color: "#868e96" },
     { key: "rd", label: "read learning", color: "#4d79cc" },
-    { key: "rm", label: "write learning", color: "#46afe3" },
+    { key: "rm", label: "read mastered", color: "#46afe3" },
+    { key: "wl", label: "write learning", color: "#22b8cf" },
     { key: "wd", label: "write quizz next day", color: "#12b886" },
     { key: "ww", label: "write quizz next week", color: "#20c997" },
     { key: "wm", label: "mastered", color: "#3dbf56" }

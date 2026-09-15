@@ -16,6 +16,7 @@
   --stage-rl: #868e96;   /* read learning  (grey)      */
   --stage-rd: #4d79cc;   /* read learned   (violet-blue, darker than rm) */
   --stage-rm: #46afe3;   /* read mastered  (hinge)     */
+  --stage-wl: #22b8cf;   /* write learning (cyan)      */
   --stage-wd: #12b886;   /* write next day (teal)      */
   --stage-ww: #20c997;   /* write next week (teal-green) */
   --stage-wm: #3dbf56;   /* mastered       (green)     */
@@ -56,23 +57,26 @@ body {
 /* hud */
 #hud { display: flex; flex-direction: column; gap: 8px; padding: 6px 14px 10px; flex-shrink: 0; }
 .stats { display: flex; flex-direction: row-reverse; gap: 5px; }
-/* Read view shows the three lowest buckets; write view the four highest (the
-   shared read-mastered/write-learning bucket appears in both). Progress shows all. */
+/* Read view shows the reading buckets (new/learning/mastered); write view shows
+   the writing buckets (write-learning/next-day/next-week/mastered). Progress: all. */
+.stats.view-read  .st-wl,
 .stats.view-read  .st-wd,
 .stats.view-read  .st-ww,
 .stats.view-read  .st-wm { display: none; }
 .stats.view-write .st-rl,
-.stats.view-write .st-rd { display: none; }
+.stats.view-write .st-rd,
+.stats.view-write .st-rm { display: none; }
 .statbox { flex: 1 1 0; min-width: 0; background: var(--panel); border-radius: 12px;
   padding: 8px 3px 6px; display: flex; flex-direction: column; align-items: center; }
 .statnum { font-size: 24px; font-weight: 800; line-height: 1; }
 .statlabel { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px;
   margin-top: 4px; text-align: center; line-height: 1.15; }
-/* five stages of the single linear path (§6): reading learning/learned/mastered,
-   then writing learned/mastered. mastered_reading folds in learning_writing. */
+/* buckets of the single linear path (§6): reading new/learning/mastered, then
+   writing learning/next-day/next-week/mastered. */
 .statbox.st-rl .statnum, .stat.st-rl .num { color: var(--stage-rl); }  /* grey       */
 .statbox.st-rd .statnum, .stat.st-rd .num { color: var(--stage-rd); }  /* light aqua */
 .statbox.st-rm .statnum, .stat.st-rm .num { color: var(--stage-rm); }  /* aqua/blue  */
+.statbox.st-wl .statnum, .stat.st-wl .num { color: var(--stage-wl); }  /* cyan       */
 .statbox.st-wd .statnum, .stat.st-wd .num { color: var(--stage-wd); }  /* teal       */
 .statbox.st-ww .statnum, .stat.st-ww .num { color: var(--stage-ww); }  /* teal-green */
 .statbox.st-wm .statnum, .stat.st-wm .num { color: var(--stage-wm); }  /* green      */
