@@ -192,7 +192,7 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
 .legitem { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .legdot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
-#ver { text-align: center; font-size: 10px; color: #4b5280; padding: 0 0 6px; letter-spacing: .5px; flex-shrink: 0; }
+.ver { text-align: center; font-size: 10px; color: #4b5280; margin-top: 18px; padding: 0 0 6px; letter-spacing: .5px; }
 
 /* welcome / how-to-play overlay */
 .intro { position: fixed; inset: 0; z-index: 50; max-width: 480px; margin: 0 auto;

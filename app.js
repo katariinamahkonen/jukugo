@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-15.8";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-15.9";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -1317,6 +1317,8 @@
     var how = h("div", "howto");
     how.innerHTML = howToPlayHTML();
     view.appendChild(how);
+
+    view.appendChild(h("div", "ver", "Jukugo v" + VERSION));
   }
 
   // The five stage series and their colours (must match the HUD / styles.css).
@@ -1539,7 +1541,6 @@
   // ------------------------------------------------------------------- boot
   function boot() {
     console.log("Jukugo version " + VERSION);
-    var v = $("ver"); if (v) v.textContent = "v" + VERSION;
     load();
     loadExamples();
     // Ask the browser to keep our data (reduces the chance of eviction). Granted
