@@ -16,8 +16,9 @@
   --stage-rl: #868e96;   /* read learning  (grey)      */
   --stage-rd: #4d79cc;   /* read learned   (violet-blue, darker than rm) */
   --stage-rm: #46afe3;   /* read mastered  (hinge)     */
-  --stage-wd: #12b886;   /* write learned  (teal)      */
-  --stage-wm: #3dbf56;   /* write mastered (green)     */
+  --stage-wd: #12b886;   /* write next day (teal)      */
+  --stage-ww: #20c997;   /* write next week (teal-green) */
+  --stage-wm: #3dbf56;   /* mastered       (green)     */
   --warm: #d6b231;       /* vivid gold: active tab, Start button */
   --reveal: #ab9666;     /* muted gray-brown gold: reveal button (less prominent) */
 }
@@ -66,6 +67,7 @@ body {
 .statbox.st-rd .statnum, .stat.st-rd .num { color: var(--stage-rd); }  /* light aqua */
 .statbox.st-rm .statnum, .stat.st-rm .num { color: var(--stage-rm); }  /* aqua/blue  */
 .statbox.st-wd .statnum, .stat.st-wd .num { color: var(--stage-wd); }  /* teal       */
+.statbox.st-ww .statnum, .stat.st-ww .num { color: var(--stage-ww); }  /* teal-green */
 .statbox.st-wm .statnum, .stat.st-wm .num { color: var(--stage-wm); }  /* green      */
 .meta { display: flex; gap: 6px; }
 .chip { display: inline-block; background: var(--panel); color: var(--muted); border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; width: max-content; }

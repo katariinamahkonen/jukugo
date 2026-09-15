@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-09.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-15.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -550,7 +550,7 @@
   //   learning_reading | learned_reading | mastered_reading(+learning_writing)
   //   | learned_writing | mastered_writing
   function stageCounts() {
-    var c = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, wm: 0 };
+    var c = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
     states.forEach(function (st, idx) {
       if (WORDS[idx]._excluded) return;       // hidden card: don't count
       // "read learning" = words in the reading pool that have actually been
@@ -560,7 +560,9 @@
       else if (st === R_LEARNED) c.rd++;
       else if (st === R_MASTERED) c.rm++;
       else if (st === W_LEARNING) c.wl++;
-      else if (st === W_LEARNED) c.wd++;
+      // write-learned splits into two buckets: words deferred ~1 week via the
+      // "Ask again next week" grade (dueAt set) vs. the default next-day schedule.
+      else if (st === W_LEARNED) { if (dueAt.has(idx)) c.ww++; else c.wd++; }
       else if (st === W_MASTERED) c.wm++;
     });
     return c;
@@ -574,6 +576,7 @@
     $("sRD").textContent = c.rd;
     $("sRM").textContent = c.rm + c.wl;
     $("sWD").textContent = c.wd;
+    $("sWW").textContent = c.ww;
     $("sWM").textContent = c.wm;
     var prog = currentTab === "progress";
     $("modeRead").classList.toggle("on", !prog && activeMode === "recognition");
@@ -587,7 +590,7 @@
   function recordDailyStages() {
     var c = stageCounts();
     progress.dailyStages[ymdOf(Date.now())] =
-      { rl: c.rl, rd: c.rd, rm: c.rm + c.wl, wd: c.wd, wm: c.wm };
+      { rl: c.rl, rd: c.rd, rm: c.rm + c.wl, wd: c.wd, ww: c.ww, wm: c.wm };
   }
 
   // Modified-Hepburn romaji from a kana reading (readings are 100% clean kana).
@@ -1289,11 +1292,12 @@
 
   // The five stage series and their colours (must match the HUD / styles.css).
   var STAGE_SERIES = [
-    { key: "rl", label: "read learning", color: "#868e96" },
-    { key: "rd", label: "read learned", color: "#4d79cc" },
-    { key: "rm", label: "read mastered", color: "#46afe3" },
-    { key: "wd", label: "write learned", color: "#12b886" },
-    { key: "wm", label: "write mastered", color: "#3dbf56" }
+    { key: "rl", label: "new", color: "#868e96" },
+    { key: "rd", label: "read learning", color: "#4d79cc" },
+    { key: "rm", label: "write learning", color: "#46afe3" },
+    { key: "wd", label: "write quizz next day", color: "#12b886" },
+    { key: "ww", label: "write quizz next week", color: "#20c997" },
+    { key: "wm", label: "mastered", color: "#3dbf56" }
   ];
 
   function readingRow() {
