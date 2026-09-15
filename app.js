@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-15.3";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-15.4";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -489,11 +489,12 @@
 
   // ------------------------------------------------------------------- rounds
   // A round quizzes at most one word from each bucket; empty/not-due buckets are
-  // skipped. One card at a time.
-  //   Reading: mastered refresher -> retention (learned) -> acquisition (new).
-  //   Writing: acquisition (read-mastered candidate / write-learning re-drill)
-  //            -> ask-next-day -> ask-next-week -> mastered, in that order.
-  var queue = [];            // pending cards this round: {idx, kind}
+  // skipped. The buckets pulled are:
+  //   Reading: mastered refresher, retention (learned), acquisition (new).
+  //   Writing: acquisition (read-mastered candidate / write-learning re-drill),
+  //            ask-next-day, ask-next-week, mastered.
+  // The final order is shuffled so the card's position never reveals its bucket.
+  var queue = [];            // pending cards this round: {idx, isNew?}
 
   function buildRound() {
     var b = ball();
@@ -501,28 +502,33 @@
     queue = [];
     var exclude = new Set();
     // Add a picked word to the round (no-op if none / already queued this round).
-    function slot(idx, kind) {
+    function slot(idx) {
       if (idx == null || exclude.has(idx)) return;
       exclude.add(idx);
-      queue.push({ idx: idx, kind: kind });
+      queue.push({ idx: idx });
     }
     // Acquisition slot: pull the next learning/candidate word and tag first-sees.
     function acquire() {
       var a = b.chooseAcquire();
       if (a == null || exclude.has(a)) return;
       exclude.add(a);
-      queue.push({ idx: a, kind: "acquisition", isNew: (b.last.get(a) || 0) <= 0 });
+      queue.push({ idx: a, isNew: (b.last.get(a) || 0) <= 0 });
     }
 
     if (b.reading) {
-      slot(b.pickMastered(exclude), "mastered");
-      slot(b.pickLearnedDue(exclude, false), "retention");
+      slot(b.pickMastered(exclude));
+      slot(b.pickLearnedDue(exclude, false));
       acquire();
     } else {
-      acquire();                                          // read-mastered / learning
-      slot(b.pickLearnedDue(exclude, false), "retention"); // ask next day
-      slot(b.pickLearnedDue(exclude, true), "retention");  // ask next week
-      slot(b.pickMastered(exclude), "mastered");
+      acquire();                                // read-mastered / learning
+      slot(b.pickLearnedDue(exclude, false));   // ask next day
+      slot(b.pickLearnedDue(exclude, true));    // ask next week
+      slot(b.pickMastered(exclude));
+    }
+    // Fisher-Yates shuffle so bucket order can't be inferred from card position.
+    for (var i = queue.length - 1; i > 0; i--) {
+      var j = (Math.random() * (i + 1)) | 0;
+      var tmp = queue[i]; queue[i] = queue[j]; queue[j] = tmp;
     }
   }
 
