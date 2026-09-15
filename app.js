@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-15.4";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-15.5";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -345,23 +345,27 @@
     // writing needs no seeding: chooseAcquire pulls read-mastered candidates.
   };
 
-  // A random due LEARNED (not mastered) word from one of the two learned
-  // sub-buckets, excluding a set. The buckets are kept completely separate:
-  //   weekBucket=false -> "ask next day": no dueAt override, due after 24h
-  //   weekBucket=true  -> "ask next week": dueAt override set, due at that time
-  // Reading only ever has the next-day bucket (the week grade is write-only).
-  Ball.prototype.pickLearnedDue = function (exclude, weekBucket) {
-    var pool = [], now = Date.now(), self = this, want = !!weekBucket;
+  // A random due word from the "ask next day" bucket: LEARNED words with no
+  // week-defer (no dueAt override), due once 24h have passed since last seen.
+  // Reading only ever has this bucket (the week grade is write-only).
+  Ball.prototype.pickAskDay = function (exclude) {
+    var pool = [], now = Date.now(), self = this;
     this.learned.forEach(function (i) {
-      if (exclude.has(i) || WORDS[i]._excluded) return;
-      var isWeek = dueAt.has(i);
-      if (isWeek !== want) return;                        // wrong bucket
-      var ready = isWeek ? (now >= dueAt.get(i))
-                         : (now - (self.last.get(i) || 0) >= RETENTION_COOLDOWN_MS);
-      if (ready) pool.push(i);
+      if (exclude.has(i) || WORDS[i]._excluded || dueAt.has(i)) return;
+      if (now - (self.last.get(i) || 0) >= RETENTION_COOLDOWN_MS) pool.push(i);
     });
-    if (!pool.length) return null;
-    return pool[(Math.random() * pool.length) | 0];
+    return pool.length ? pool[(Math.random() * pool.length) | 0] : null;
+  };
+
+  // A random due word from the "ask next week" bucket: LEARNED words deferred
+  // ~1 week via the "Ask again next week" grade (dueAt set), due at that time.
+  Ball.prototype.pickAskWeek = function (exclude) {
+    var pool = [], now = Date.now();
+    this.learned.forEach(function (i) {
+      if (exclude.has(i) || WORDS[i]._excluded || !dueAt.has(i)) return;
+      if (now >= dueAt.get(i)) pool.push(i);
+    });
+    return pool.length ? pool[(Math.random() * pool.length) | 0] : null;
   };
 
   // A random MASTERED word that is due for its ~4-week refresher. Only the ball's
@@ -517,12 +521,12 @@
 
     if (b.reading) {
       slot(b.pickMastered(exclude));
-      slot(b.pickLearnedDue(exclude, false));
+      slot(b.pickAskDay(exclude));
       acquire();
     } else {
-      acquire();                                // read-mastered / learning
-      slot(b.pickLearnedDue(exclude, false));   // ask next day
-      slot(b.pickLearnedDue(exclude, true));    // ask next week
+      acquire();                    // read-mastered / learning
+      slot(b.pickAskDay(exclude));  // ask next day
+      slot(b.pickAskWeek(exclude)); // ask next week
       slot(b.pickMastered(exclude));
     }
     // Fisher-Yates shuffle so bucket order can't be inferred from card position.
