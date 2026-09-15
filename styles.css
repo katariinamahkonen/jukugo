@@ -66,6 +66,15 @@ body {
 .stats.view-write .st-rl,
 .stats.view-write .st-rd,
 .stats.view-write .st-rm { display: none; }
+/* Progress view: two rows — write buckets on top, read buckets below. */
+.stats.view-progress { display: grid; grid-template-columns: repeat(4, 1fr); }
+.stats.view-progress .st-wm { order: 1; }
+.stats.view-progress .st-ww { order: 2; }
+.stats.view-progress .st-wd { order: 3; }
+.stats.view-progress .st-wl { order: 4; }
+.stats.view-progress .st-rm { order: 5; }
+.stats.view-progress .st-rd { order: 6; }
+.stats.view-progress .st-rl { order: 7; }
 .statbox { flex: 1 1 0; min-width: 0; background: var(--panel); border-radius: 12px;
   padding: 8px 3px 6px; display: flex; flex-direction: column; align-items: center; }
 .statnum { font-size: 24px; font-weight: 800; line-height: 1; }
