@@ -2,12 +2,13 @@
  * One linear path per word: r_learning -> r_learned -> r_mastered ->
  * w_learning -> w_learned -> w_mastered. A single shared state map is the source
  * of truth; two "Ball" views (reading/writing) derive per-phase sets and kanji
- * connectivity. Rounds = 2 retention + 1 acquisition; localStorage persistence.
+ * connectivity. Rounds quiz one word per bucket (see buildRound); localStorage
+ * persistence.
  * Vanilla JS, classic script (works from file:// on Android Chrome). */
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-15.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-15.3";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -344,16 +345,19 @@
     // writing needs no seeding: chooseAcquire pulls read-mastered candidates.
   };
 
-  // A random LEARNED (not mastered) word, excluding a set. Skip any word quizzed
-  // within the last 24h (§10 cooldown) so the early game doesn't keep re-asking
-  // the same freshly-learned words.
-  Ball.prototype.pickRetention = function (exclude) {
-    var pool = [], now = Date.now(), self = this;
+  // A random due LEARNED (not mastered) word from one of the two learned
+  // sub-buckets, excluding a set. The buckets are kept completely separate:
+  //   weekBucket=false -> "ask next day": no dueAt override, due after 24h
+  //   weekBucket=true  -> "ask next week": dueAt override set, due at that time
+  // Reading only ever has the next-day bucket (the week grade is write-only).
+  Ball.prototype.pickLearnedDue = function (exclude, weekBucket) {
+    var pool = [], now = Date.now(), self = this, want = !!weekBucket;
     this.learned.forEach(function (i) {
       if (exclude.has(i) || WORDS[i]._excluded) return;
-      var t = self.last.has(i) ? self.last.get(i) : 0;
-      // An explicit due time ("Ask again next week") overrides the default 24h.
-      var ready = dueAt.has(i) ? (now >= dueAt.get(i)) : (now - t >= RETENTION_COOLDOWN_MS);
+      var isWeek = dueAt.has(i);
+      if (isWeek !== want) return;                        // wrong bucket
+      var ready = isWeek ? (now >= dueAt.get(i))
+                         : (now - (self.last.get(i) || 0) >= RETENTION_COOLDOWN_MS);
       if (ready) pool.push(i);
     });
     if (!pool.length) return null;
@@ -363,7 +367,7 @@
   // A random MASTERED word that is due for its ~4-week refresher. Only the ball's
   // top plateau (r_mastered for reading, w_mastered for writing); words that have
   // moved on into the writing path are handled there, not re-quizzed as read-
-  // mastered. Same due/grade principles as pickRetention, just a longer cooldown.
+  // mastered. Same due/grade principle, just a longer cooldown.
   Ball.prototype.pickMastered = function (exclude) {
     var top = this.S.MASTERED, pool = [], now = Date.now(), self = this;
     this.mastered.forEach(function (i) {
@@ -484,30 +488,41 @@
   function ball() { return balls[activeMode]; }
 
   // ------------------------------------------------------------------- rounds
-  // A round = 1 mastered refresher + 1 retention (learned) + 1 acquisition
-  // (learning/new). Any slot is skipped when nothing is due. One card at a time.
+  // A round quizzes at most one word from each bucket; empty/not-due buckets are
+  // skipped. One card at a time.
+  //   Reading: mastered refresher -> retention (learned) -> acquisition (new).
+  //   Writing: acquisition (read-mastered candidate / write-learning re-drill)
+  //            -> ask-next-day -> ask-next-week -> mastered, in that order.
   var queue = [];            // pending cards this round: {idx, kind}
 
   function buildRound() {
     var b = ball();
     b.maybeUnlock();
     queue = [];
-    var roundExclude = new Set();
-    var m = b.pickMastered(roundExclude);
-    if (m != null) {
-      roundExclude.add(m);
-      queue.push({ idx: m, kind: "mastered" });
+    var exclude = new Set();
+    // Add a picked word to the round (no-op if none / already queued this round).
+    function slot(idx, kind) {
+      if (idx == null || exclude.has(idx)) return;
+      exclude.add(idx);
+      queue.push({ idx: idx, kind: kind });
     }
-    var r = b.pickRetention(roundExclude);
-    if (r != null) {
-      roundExclude.add(r);
-      queue.push({ idx: r, kind: "retention" });
+    // Acquisition slot: pull the next learning/candidate word and tag first-sees.
+    function acquire() {
+      var a = b.chooseAcquire();
+      if (a == null || exclude.has(a)) return;
+      exclude.add(a);
+      queue.push({ idx: a, kind: "acquisition", isNew: (b.last.get(a) || 0) <= 0 });
     }
-    var a = b.chooseAcquire();
-    if (a != null) {
-      // "new word" = presented for the very first time (never graded yet).
-      var isNew = (b.last.get(a) || 0) <= 0;
-      queue.push({ idx: a, kind: "acquisition", isNew: isNew });
+
+    if (b.reading) {
+      slot(b.pickMastered(exclude), "mastered");
+      slot(b.pickLearnedDue(exclude, false), "retention");
+      acquire();
+    } else {
+      acquire();                                          // read-mastered / learning
+      slot(b.pickLearnedDue(exclude, false), "retention"); // ask next day
+      slot(b.pickLearnedDue(exclude, true), "retention");  // ask next week
+      slot(b.pickMastered(exclude), "mastered");
     }
   }
 
