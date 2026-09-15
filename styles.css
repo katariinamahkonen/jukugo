@@ -117,12 +117,11 @@ body {
 .show { background: var(--reveal); color: #0b0e1c; }
 .grade { color: #0b0e1c; }
 /* grade button colour = the stage the word lands in for the current mode. "week"
-   lands in the same LEARNED stage as "tomorrow", shown a shade lighter.
-   reading: Keep quizzing->learning, tomorrow/week->learned, Move on->mastered.
+   (write only) lands in the same LEARNED stage as "tomorrow", shown a shade lighter.
+   reading: Keep quizzing->learning, tomorrow->learned, Move on->mastered.
    writing: Keep quizzing->read-mastered (baseline), tomorrow/week->learned, know->mastered. */
 .actions.read  .g-hard { background: var(--stage-rl); }
 .actions.read  .g-good { background: var(--stage-rd); }
-.actions.read  .g-week { background: var(--stage-rd); filter: brightness(1.22); }
 .actions.read  .g-know { background: var(--stage-rm); }
 .actions.write .g-hard { background: var(--stage-rm); }
 .actions.write .g-good { background: var(--stage-wd); }

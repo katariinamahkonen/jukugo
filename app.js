@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-15.5";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-15.6";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -931,11 +931,10 @@
       }
     }
     // Remember the exact substring that realizes the target (conjugated verbs
-    // are not the dictionary form) and its reading, so the write-mode "Show
+    // are not the dictionary form) so correctedFurigana / the write-mode "Show
     // hiragana" step can locate and hide the target correctly.
     var region = used || (jp.indexOf(target) >= 0 ? target : "");
-    return { japanese: jp, japanese_char_count: Array.from(jp).length,
-      furigana: clean, target_used: region, target_reading_hiragana: usedReading || "",
+    return { japanese: jp, furigana: clean, target_used: region,
       english: obj.english || "", finnish: obj.finnish || "" };
   }
 
