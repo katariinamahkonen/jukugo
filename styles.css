@@ -56,6 +56,13 @@ body {
 /* hud */
 #hud { display: flex; flex-direction: column; gap: 8px; padding: 6px 14px 10px; flex-shrink: 0; }
 .stats { display: flex; flex-direction: row-reverse; gap: 5px; }
+/* Read view shows the three lowest buckets; write view the four highest (the
+   shared read-mastered/write-learning bucket appears in both). Progress shows all. */
+.stats.view-read  .st-wd,
+.stats.view-read  .st-ww,
+.stats.view-read  .st-wm { display: none; }
+.stats.view-write .st-rl,
+.stats.view-write .st-rd { display: none; }
 .statbox { flex: 1 1 0; min-width: 0; background: var(--panel); border-radius: 12px;
   padding: 8px 3px 6px; display: flex; flex-direction: column; align-items: center; }
 .statnum { font-size: 24px; font-weight: 800; line-height: 1; }

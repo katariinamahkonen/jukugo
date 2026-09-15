@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-15.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-15.2";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -579,6 +579,12 @@
     $("sWW").textContent = c.ww;
     $("sWM").textContent = c.wm;
     var prog = currentTab === "progress";
+    // Show only the relevant buckets per view (read = 3 lowest, write = 4
+    // highest; the shared middle bucket appears in both, labelled differently).
+    // The progress tab shows all six to match the chart.
+    var hudView = prog ? "progress" : (activeMode === "recognition" ? "read" : "write");
+    $("stats").className = "stats view-" + hudView;
+    $("sRMlabel").textContent = (hudView === "write") ? "learning" : "mastered";
     $("modeRead").classList.toggle("on", !prog && activeMode === "recognition");
     $("modeWrite").classList.toggle("on", !prog && activeMode === "production");
     $("modeProgress").classList.toggle("on", prog);
