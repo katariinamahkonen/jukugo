@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-24.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-24.2";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -625,15 +625,16 @@
     $("sWD").textContent = c.wd;
     $("sWW").textContent = c.ww;
     $("sWM").textContent = c.wm;
-    // Second line per bucket: how many are due to be quizzed right now.
+    // Second line per bucket: how many are due to be quizzed right now (hidden at 0).
     var due = dueCounts();
-    $("dRL").textContent = due.rl;
-    $("dRD").textContent = due.rd;
-    $("dRM").textContent = due.rm;
-    $("dWL").textContent = due.wl;
-    $("dWD").textContent = due.wd;
-    $("dWW").textContent = due.ww;
-    $("dWM").textContent = due.wm;
+    function setDue(id, n) { var e = $(id); e.textContent = n; e.style.display = n ? "" : "none"; }
+    setDue("dRL", due.rl);
+    setDue("dRD", due.rd);
+    setDue("dRM", due.rm);
+    setDue("dWL", due.wl);
+    setDue("dWD", due.wd);
+    setDue("dWW", due.ww);
+    setDue("dWM", due.wm);
     var prog = currentTab === "progress";
     // Show only the relevant buckets per view (read = new/learning/mastered,
     // write = write-learning/next-day/next-week/mastered). Progress shows all.
