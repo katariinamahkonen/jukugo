@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-15.9";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-24.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -592,6 +592,28 @@
     return c;
   }
 
+  // How many words in each bucket are due to be quizzed right now, using the same
+  // readiness rules as the pickers: learning words past the acquire gap, learned
+  // words past their day/week cooldown, mastered words past the ~4-week refresher.
+  function dueCounts() {
+    var d = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
+    var now = Date.now(), gap = acquireGapHours() * 3600000;
+    states.forEach(function (st, idx) {
+      if (WORDS[idx]._excluded) return;
+      var last = lastQuiz.get(idx) || 0;
+      if (st === R_LEARNING) { if (last !== 0 && now - last >= gap) d.rl++; }
+      else if (st === R_LEARNED) { if (now - last >= RETENTION_COOLDOWN_MS) d.rd++; }
+      else if (st === R_MASTERED) { if (now - last >= MASTERED_COOLDOWN_MS) d.rm++; }
+      else if (st === W_LEARNING) { if (last !== 0 && now - last >= gap) d.wl++; }
+      else if (st === W_LEARNED) {
+        if (dueAt.has(idx)) { if (now >= dueAt.get(idx)) d.ww++; }
+        else if (now - last >= RETENTION_COOLDOWN_MS) d.wd++;
+      }
+      else if (st === W_MASTERED) { if (now - last >= MASTERED_COOLDOWN_MS) d.wm++; }
+    });
+    return d;
+  }
+
   function renderHud() {
     var c = stageCounts();
     // Read-mastered (rm) and write-learning (wl) are now separate buckets: rm
@@ -603,6 +625,15 @@
     $("sWD").textContent = c.wd;
     $("sWW").textContent = c.ww;
     $("sWM").textContent = c.wm;
+    // Second line per bucket: how many are due to be quizzed right now.
+    var due = dueCounts();
+    $("dRL").textContent = due.rl;
+    $("dRD").textContent = due.rd;
+    $("dRM").textContent = due.rm;
+    $("dWL").textContent = due.wl;
+    $("dWD").textContent = due.wd;
+    $("dWW").textContent = due.ww;
+    $("dWM").textContent = due.wm;
     var prog = currentTab === "progress";
     // Show only the relevant buckets per view (read = new/learning/mastered,
     // write = write-learning/next-day/next-week/mastered). Progress shows all.
@@ -1571,7 +1602,8 @@
       stateOf: function (idx) { return states.get(idx); },
       ball: ball, buildRound: buildRound, nextCard: nextCard, grade: grade,
       getQueue: function () { return queue; }, load: load, save: save,
-      kanaToRomaji: kanaToRomaji, states: states, lastQuiz: lastQuiz
+      kanaToRomaji: kanaToRomaji, states: states, lastQuiz: lastQuiz,
+      stageCounts: stageCounts, dueCounts: dueCounts
     };
   }
 })();

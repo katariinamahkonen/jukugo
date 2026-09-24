@@ -78,6 +78,8 @@ body {
 .statbox { flex: 1 1 0; min-width: 0; background: var(--panel); border-radius: 12px;
   padding: 8px 3px 6px; display: flex; flex-direction: column; align-items: center; }
 .statnum { font-size: 24px; font-weight: 800; line-height: 1; }
+/* "due now" count under each bucket number, in the reveal (Show answer) colour. */
+.statdue { font-size: 15px; font-weight: 800; line-height: 1; margin-top: 3px; color: var(--reveal); }
 .statlabel { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px;
   margin-top: 4px; text-align: center; line-height: 1.15; }
 /* buckets of the single linear path (§6): reading new/learning/mastered, then
@@ -233,6 +235,7 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
   #hud { padding: 4px 12px 8px; }
   .statbox { padding: 7px 2px 5px; border-radius: 10px; }
   .statnum { font-size: 20px; }
+  .statdue { font-size: 13px; }
   .statlabel { font-size: 8px; }
   #view { padding: 6px 12px 50px; }
   .card { min-height: 0; padding: 18px 14px; border-radius: 18px; }
@@ -248,6 +251,7 @@ h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 14px 0 6px;
   .modes { padding: 2px; }
   .mode { font-size: 11px; padding: 6px 8px; }
   .statnum { font-size: 18px; }
+  .statdue { font-size: 12px; }
   .big { font-size: 40px; }
   .actions button { padding: 7px 2px; font-size: 11px; }
   .actions .show { font-size: 14px; padding: 12px 8px; }
