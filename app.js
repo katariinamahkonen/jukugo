@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-24.5";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-24.6";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -38,6 +38,7 @@
     return Math.max(ACQUIRE_GAP_MIN_H, Math.min(ACQUIRE_GAP_MAX_H, hh | 0));
   }
   var MAX_LEVEL = 8;   // recomputed from data below
+  var DUE_SOON_MS = 15 * 60 * 1000;                // lookahead for the learning "due" count
   var RETENTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't re-review a LEARNED word within 24h
   var WEEK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;  // "Ask again next week": stay learned, defer ~1 week
   var MASTERED_COOLDOWN_MS = 28 * 24 * 60 * 60 * 1000; // re-quiz a MASTERED word every ~4 weeks
@@ -595,17 +596,20 @@
   // How many words in each bucket are due to be quizzed right now, using the same
   // readiness rules as the pickers: learning words past the acquire gap, learned
   // words past their day/week cooldown, mastered words past the ~4-week refresher.
+  // For the learning stage (rl/wl) we also count words that become due within the
+  // next DUE_SOON_MS, so the count doesn't read 0 while learning words trickle
+  // back one by one during a long session.
   // Write-learning also includes the read-mastered candidates that can be STARTED
   // right now, i.e. bounded by the remaining write-pool capacity ("Max words
   // learning (write)"): those are introduced one per round while there is room.
   function dueCounts() {
     var d = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
-    var now = Date.now(), gap = acquireGapHours() * 3600000;
+    var now = Date.now(), gap = acquireGapHours() * 3600000, soon = gap - DUE_SOON_MS;
     var rMastered = 0, wlPool = 0;
     states.forEach(function (st, idx) {
       if (WORDS[idx]._excluded) return;
       var last = lastQuiz.get(idx) || 0;
-      if (st === R_LEARNING) { if (last !== 0 && now - last >= gap) d.rl++; }
+      if (st === R_LEARNING) { if (last !== 0 && now - last >= soon) d.rl++; }
       else if (st === R_LEARNED) { if (now - last >= RETENTION_COOLDOWN_MS) d.rd++; }
       else if (st === R_MASTERED) {
         rMastered++;                                      // a write-learning candidate
@@ -613,7 +617,7 @@
       }
       else if (st === W_LEARNING) {
         wlPool++;                                         // occupies write-pool capacity
-        if (last !== 0 && now - last >= gap) d.wl++;
+        if (last !== 0 && now - last >= soon) d.wl++;
       }
       else if (st === W_LEARNED) {
         if (dueAt.has(idx)) { if (now >= dueAt.get(idx)) d.ww++; }
