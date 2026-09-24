@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-24.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-24.3";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -625,9 +625,11 @@
     $("sWD").textContent = c.wd;
     $("sWW").textContent = c.ww;
     $("sWM").textContent = c.wm;
-    // Second line per bucket: how many are due to be quizzed right now (hidden at 0).
+    // Second line per bucket: how many are due to be quizzed right now. Hidden at
+    // 0 but with visibility (not display) so its space is kept and the label below
+    // doesn't shift.
     var due = dueCounts();
-    function setDue(id, n) { var e = $(id); e.textContent = n; e.style.display = n ? "" : "none"; }
+    function setDue(id, n) { var e = $(id); e.textContent = n; e.style.visibility = n ? "" : "hidden"; }
     setDue("dRL", due.rl);
     setDue("dRD", due.rd);
     setDue("dRM", due.rm);
