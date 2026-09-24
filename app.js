@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-24.4";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-24.5";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -595,28 +595,35 @@
   // How many words in each bucket are due to be quizzed right now, using the same
   // readiness rules as the pickers: learning words past the acquire gap, learned
   // words past their day/week cooldown, mastered words past the ~4-week refresher.
-  // Read-mastered words also count toward write-learning: they are the writing
-  // candidates fed into the write pool (one per round while it has room), so
-  // they're pending write practice.
+  // Write-learning also includes the read-mastered candidates that can be STARTED
+  // right now, i.e. bounded by the remaining write-pool capacity ("Max words
+  // learning (write)"): those are introduced one per round while there is room.
   function dueCounts() {
     var d = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
     var now = Date.now(), gap = acquireGapHours() * 3600000;
+    var rMastered = 0, wlPool = 0;
     states.forEach(function (st, idx) {
       if (WORDS[idx]._excluded) return;
       var last = lastQuiz.get(idx) || 0;
       if (st === R_LEARNING) { if (last !== 0 && now - last >= gap) d.rl++; }
       else if (st === R_LEARNED) { if (now - last >= RETENTION_COOLDOWN_MS) d.rd++; }
       else if (st === R_MASTERED) {
+        rMastered++;                                      // a write-learning candidate
         if (now - last >= MASTERED_COOLDOWN_MS) d.rm++;   // due for the reading refresher
-        d.wl++;                                           // pending as a write-learning candidate
       }
-      else if (st === W_LEARNING) { if (last !== 0 && now - last >= gap) d.wl++; }
+      else if (st === W_LEARNING) {
+        wlPool++;                                         // occupies write-pool capacity
+        if (last !== 0 && now - last >= gap) d.wl++;
+      }
       else if (st === W_LEARNED) {
         if (dueAt.has(idx)) { if (now >= dueAt.get(idx)) d.ww++; }
         else if (now - last >= RETENTION_COOLDOWN_MS) d.wd++;
       }
       else if (st === W_MASTERED) { if (now - last >= MASTERED_COOLDOWN_MS) d.wm++; }
     });
+    // Candidates that can be started now = free slots under the write-pool cap.
+    var room = Math.max(0, poolTarget(false) - wlPool);
+    d.wl += Math.min(rMastered, room);
     return d;
   }
 
