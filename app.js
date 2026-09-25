@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-24.6";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-25.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -1137,50 +1137,61 @@
     return wrap;
   }
 
-  // Split a sentence into ordered tokens ({t:'text'|'ruby', s, e, read}) using
-  // the furigana spans (same span-finding logic as furiganaEl).
-  function exTokens(jp, fur) {
-    var toks = [], pos = 0;
+  // Place each furigana span on the first not-yet-covered occurrence of its text.
+  // Unlike a sequential indexOf scan, this does NOT drop a mis-ordered span into
+  // plain text (which would leak the target kanji). Returns startIndex -> {len,read}.
+  function spanIndex(jp, fur) {
+    var covered = new Array(jp.length), map = {};
     for (var i = 0; i < fur.length; i++) {
-      var span = fur[i] && fur[i].kanji_span, read = fur[i] && fur[i].reading_hiragana;
-      if (!span) continue;
-      var at = jp.indexOf(span, pos);
-      if (at < 0) continue;
-      if (at > pos) toks.push({ t: "text", s: pos, e: at });
-      toks.push({ t: "ruby", s: at, e: at + span.length, read: read || "" });
-      pos = at + span.length;
+      var span = fur[i] && fur[i].kanji_span; if (!span) continue;
+      var read = fur[i].reading_hiragana || "", from = 0, at;
+      while ((at = jp.indexOf(span, from)) >= 0) {
+        var free = true;
+        for (var j = 0; j < span.length; j++) if (covered[at + j]) { free = false; break; }
+        if (free) {
+          for (var j2 = 0; j2 < span.length; j2++) covered[at + j2] = true;
+          map[at] = { len: span.length, read: read };
+          break;
+        }
+        from = at + 1;
+      }
     }
-    if (pos < jp.length) toks.push({ t: "text", s: pos, e: jp.length });
-    return toks;
+    return map;
   }
 
-  // Write-mode "Show hiragana" view: any kanji span that CONTAINS a target kanji
-  // is rendered as its reading (kana/romaji per setting) so the kanji you must
-  // write is hidden EVERYWHERE it appears (including inside compounds); all other
-  // kanji keep their ruby furigana; okurigana/particles (already kana) stay.
+  // Write-mode "Show hiragana" view: the target kanji must stay hidden EVERYWHERE
+  // it appears (including inside compounds) until "Show kanji". We walk the
+  // sentence char by char: an annotated span containing a target kanji is shown as
+  // its reading; other spans keep ruby furigana; a bare target kanji (unannotated)
+  // becomes a □ placeholder so it can never leak; everything else is shown as-is.
   function sentenceKanaEl(d, w) {
     var jp = d.japanese || "";
     var fur = correctedFurigana(d, w);
-    // The set of kanji that make up the target word.
     var tKanji = {};
     for (var c = 0; c < w.s.length; c++) if (isKanjiChar(w.s[c])) tKanji[w.s[c]] = true;
+    var spans = spanIndex(jp, fur), romaji = settings.romaji;
 
     var wrap = h("div", "jp ex-jp");
-    var toks = exTokens(jp, fur);
-    for (var i = 0; i < toks.length; i++) {
-      var tk = toks[i], seg = jp.slice(tk.s, tk.e);
-      if (tk.t === "text") { wrap.appendChild(document.createTextNode(seg)); continue; }
-      // hide this span if it contains any target kanji
-      var hasTarget = false;
-      for (var k = 0; k < seg.length; k++) if (tKanji[seg[k]]) { hasTarget = true; break; }
-      if (hasTarget) {                                      // hide: show reading as kana
-        wrap.appendChild(document.createTextNode(settings.romaji ? kanaToRomaji(tk.read) : tk.read));
-      } else {                                              // keep: kanji with furigana
-        var ruby = document.createElement("ruby");
-        ruby.appendChild(document.createTextNode(seg));
-        var rt = document.createElement("rt"); rt.textContent = tk.read || "";
-        ruby.appendChild(rt);
-        wrap.appendChild(ruby);
+    for (var p = 0; p < jp.length;) {
+      var sp = spans[p];
+      if (sp) {
+        var seg = jp.slice(p, p + sp.len), hasTarget = false;
+        for (var k = 0; k < seg.length; k++) if (tKanji[seg[k]]) { hasTarget = true; break; }
+        if (hasTarget) {                                     // hide: show reading as kana
+          wrap.appendChild(document.createTextNode(romaji ? kanaToRomaji(sp.read) : sp.read));
+        } else {                                             // keep: kanji with furigana
+          var ruby = document.createElement("ruby");
+          ruby.appendChild(document.createTextNode(seg));
+          var rt = document.createElement("rt"); rt.textContent = sp.read || "";
+          ruby.appendChild(rt);
+          wrap.appendChild(ruby);
+        }
+        p += sp.len;
+      } else {                                               // single unannotated char
+        var ch = jp.charAt(p);
+        // never reveal a bare target kanji whose reading we don't have here
+        wrap.appendChild(document.createTextNode(tKanji[ch] ? "\u25a1" : ch));
+        p += 1;
       }
     }
     return wrap;
