@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-25.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-25.3";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -39,10 +39,14 @@
   }
   var MAX_LEVEL = 8;   // recomputed from data below
   var DUE_SOON_MS = 15 * 60 * 1000;                // lookahead for the learning "due" count
-  var RETENTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't re-review a LEARNED word within 24h
-  var WEEK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;  // "Ask again next week": stay learned, defer ~1 week
-  var MASTERED_COOLDOWN_MS = 28 * 24 * 60 * 60 * 1000; // re-quiz a MASTERED word every ~4 weeks
-  var MASTERED_REPEAT_COOLDOWN_MS = 56 * 24 * 60 * 60 * 1000; // re-confirmed mastered word: ~2 months
+  // The "next day / next week / next month" buckets are scheduled by calendar
+  // date, not by the exact clock time: a word graded at any time today is due at
+  // local midnight after the given number of days, so everything due today shows
+  // up first thing in the morning (see dueDay / dayStart helpers).
+  var RETENTION_DAYS = 1;          // "ask next day": due the next calendar day
+  var WEEK_DAYS = 7;               // "ask next week"
+  var MASTERED_DAYS = 28;          // "ask next month" default (~4 weeks)
+  var MASTERED_REPEAT_DAYS = 56;   // re-confirmed mastered word: ~2 months
   // Words with BCCWJ rank worse than this (or unranked) are "rare": they are
   // deferred in selection (§8 Phase C) until all common words of the currently
   // unlocked kanji are done, so rare idioms don't appear early. [decision]
@@ -349,13 +353,13 @@
   };
 
   // A random due word from the "ask next day" bucket: LEARNED words with no
-  // week-defer (no dueAt override), due once 24h have passed since last seen.
+  // week-defer (no dueAt override), due the next calendar day after last seen.
   // Reading only ever has this bucket (the week grade is write-only).
   Ball.prototype.pickAskDay = function (exclude) {
     var pool = [], now = Date.now(), self = this;
     this.learned.forEach(function (i) {
       if (exclude.has(i) || WORDS[i]._excluded || dueAt.has(i)) return;
-      if (now - (self.last.get(i) || 0) >= RETENTION_COOLDOWN_MS) pool.push(i);
+      if (now >= dueDay(self.last.get(i) || 0, RETENTION_DAYS)) pool.push(i);
     });
     return pool.length ? pool[(Math.random() * pool.length) | 0] : null;
   };
@@ -366,7 +370,7 @@
     var pool = [], now = Date.now();
     this.learned.forEach(function (i) {
       if (exclude.has(i) || WORDS[i]._excluded || !dueAt.has(i)) return;
-      if (now >= dueAt.get(i)) pool.push(i);
+      if (now >= dayStart(dueAt.get(i))) pool.push(i);
     });
     return pool.length ? pool[(Math.random() * pool.length) | 0] : null;
   };
@@ -381,8 +385,8 @@
     this.mastered.forEach(function (i) {
       if (exclude.has(i) || WORDS[i]._excluded) return;
       if (states.get(i) !== top) return;
-      var ready = dueAt.has(i) ? (now >= dueAt.get(i))
-                               : (now - (self.last.get(i) || 0) >= MASTERED_COOLDOWN_MS);
+      var ready = dueAt.has(i) ? (now >= dayStart(dueAt.get(i)))
+                               : (now >= dueDay(self.last.get(i) || 0, MASTERED_DAYS));
       if (ready) pool.push(i);
     });
     if (!pool.length) return null;
@@ -391,6 +395,9 @@
 
   function less(a, b) { for (var i = 0; i < a.length; i++) { if (a[i] < b[i]) return true; if (a[i] > b[i]) return false; } return false; }
   function ymdOf(t) { var d = new Date(t); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function dayStart(t) { var d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); }   // local midnight of t
+  // Local midnight of the day that is `days` calendar days after anchor's day.
+  function dueDay(anchor, days) { var d = new Date(anchor); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + days); return d.getTime(); }
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
   // ----------------------------------------------------------- persistence
@@ -561,8 +568,8 @@
     //     familiar words from the monthly check. Newly-mastered words (from other
     //     buckets) keep the default ~1-month refresher.
     // Every other case clears any prior override.
-    if (g === "week") dueAt.set(idx, now + WEEK_COOLDOWN_MS);
-    else if (g === "know" && fromMastered && !b.reading) dueAt.set(idx, now + MASTERED_REPEAT_COOLDOWN_MS);
+    if (g === "week") dueAt.set(idx, dueDay(now, WEEK_DAYS));
+    else if (g === "know" && fromMastered && !b.reading) dueAt.set(idx, dueDay(now, MASTERED_REPEAT_DAYS));
     else dueAt.delete(idx);
     recordDailyStages();               // snapshot per-stage counts for the curve
     save();
@@ -621,21 +628,21 @@
       if (WORDS[idx]._excluded) return;
       var last = lastQuiz.get(idx) || 0;
       if (st === R_LEARNING) { if (last !== 0 && now - last >= soon) d.rl++; }
-      else if (st === R_LEARNED) { if (now - last >= RETENTION_COOLDOWN_MS) d.rd++; }
+      else if (st === R_LEARNED) { if (now >= dueDay(last, RETENTION_DAYS)) d.rd++; }
       else if (st === R_MASTERED) {
         rMastered++;                                      // a write-learning candidate
-        if (now - last >= MASTERED_COOLDOWN_MS) d.rm++;   // due for the reading refresher
+        if (now >= dueDay(last, MASTERED_DAYS)) d.rm++;   // due for the reading refresher
       }
       else if (st === W_LEARNING) {
         wlPool++;                                         // occupies write-pool capacity
         if (last !== 0 && now - last >= soon) d.wl++;
       }
       else if (st === W_LEARNED) {
-        if (dueAt.has(idx)) { if (now >= dueAt.get(idx)) d.ww++; }
-        else if (now - last >= RETENTION_COOLDOWN_MS) d.wd++;
+        if (dueAt.has(idx)) { if (now >= dayStart(dueAt.get(idx))) d.ww++; }
+        else if (now >= dueDay(last, RETENTION_DAYS)) d.wd++;
       }
       else if (st === W_MASTERED) {
-        var readyM = dueAt.has(idx) ? (now >= dueAt.get(idx)) : (now - last >= MASTERED_COOLDOWN_MS);
+        var readyM = dueAt.has(idx) ? (now >= dayStart(dueAt.get(idx))) : (now >= dueDay(last, MASTERED_DAYS));
         if (readyM) d.wm++;
       }
     });
