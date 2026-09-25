@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-25.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-25.2";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -42,6 +42,7 @@
   var RETENTION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // don't re-review a LEARNED word within 24h
   var WEEK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;  // "Ask again next week": stay learned, defer ~1 week
   var MASTERED_COOLDOWN_MS = 28 * 24 * 60 * 60 * 1000; // re-quiz a MASTERED word every ~4 weeks
+  var MASTERED_REPEAT_COOLDOWN_MS = 56 * 24 * 60 * 60 * 1000; // re-confirmed mastered word: ~2 months
   // Words with BCCWJ rank worse than this (or unranked) are "rare": they are
   // deferred in selection (§8 Phase C) until all common words of the currently
   // unlocked kanji are done, so rare idioms don't appear early. [decision]
@@ -125,7 +126,8 @@
   var states = new Map();   // idx -> one of the six states above (source of truth)
   var lastQuiz = new Map(); // idx -> lastQuizzedAt ms (a word is active in one phase)
   var dueAt = new Map();    // idx -> explicit next-due ms (overrides the default
-                            // retention cooldown; set by "Ask again next week")
+                            // cooldown; set by "Ask again next week" for learned
+                            // words and by re-confirming a mastered word ~2 months)
 
   // A Ball holds the derived, per-phase view (sets + kanji connectivity + size).
   function Ball(phase) {
@@ -369,17 +371,19 @@
     return pool.length ? pool[(Math.random() * pool.length) | 0] : null;
   };
 
-  // A random MASTERED word that is due for its ~4-week refresher. Only the ball's
-  // top plateau (r_mastered for reading, w_mastered for writing); words that have
+  // A random MASTERED word that is due for its refresher. Only the ball's top
+  // plateau (r_mastered for reading, w_mastered for writing); words that have
   // moved on into the writing path are handled there, not re-quizzed as read-
-  // mastered. Same due/grade principle, just a longer cooldown.
+  // mastered. Default cooldown is ~4 weeks, but a word re-confirmed from the
+  // mastered set carries an explicit dueAt (~2 months) to offload familiar words.
   Ball.prototype.pickMastered = function (exclude) {
     var top = this.S.MASTERED, pool = [], now = Date.now(), self = this;
     this.mastered.forEach(function (i) {
       if (exclude.has(i) || WORDS[i]._excluded) return;
       if (states.get(i) !== top) return;
-      var t = self.last.has(i) ? self.last.get(i) : 0;
-      if (now - t >= MASTERED_COOLDOWN_MS) pool.push(i);
+      var ready = dueAt.has(i) ? (now >= dueAt.get(i))
+                               : (now - (self.last.get(i) || 0) >= MASTERED_COOLDOWN_MS);
+      if (ready) pool.push(i);
     });
     if (!pool.length) return null;
     return pool[(Math.random() * pool.length) | 0];
@@ -545,13 +549,20 @@
 
   function grade(card, g) {            // g: 'know'|'good'|'week'|'hard'
     var b = ball(), idx = card.idx, now = Date.now();
+    // Was this card drawn from the mastered set (i.e. a mastered refresher)?
+    var fromMastered = (states.get(idx) === b.S.MASTERED);
     if (g === "know") b.enterBall(idx, "mastered");
     else if (g === "good" || g === "week") b.enterBall(idx, "learned");
     else b.toLearning(idx);            // hard
     b.last.set(idx, now);
-    // "week" keeps the word learned but defers its next review ~1 week; every
-    // other grade uses the default schedule, so drop any prior override.
+    // Explicit next-due overrides (dueAt):
+    //   "week" -> stay learned, defer ~1 week.
+    //   "know" on a word ALREADY mastered (write) -> defer ~2 months, to offload
+    //     familiar words from the monthly check. Newly-mastered words (from other
+    //     buckets) keep the default ~1-month refresher.
+    // Every other case clears any prior override.
     if (g === "week") dueAt.set(idx, now + WEEK_COOLDOWN_MS);
+    else if (g === "know" && fromMastered && !b.reading) dueAt.set(idx, now + MASTERED_REPEAT_COOLDOWN_MS);
     else dueAt.delete(idx);
     recordDailyStages();               // snapshot per-stage counts for the curve
     save();
@@ -623,7 +634,10 @@
         if (dueAt.has(idx)) { if (now >= dueAt.get(idx)) d.ww++; }
         else if (now - last >= RETENTION_COOLDOWN_MS) d.wd++;
       }
-      else if (st === W_MASTERED) { if (now - last >= MASTERED_COOLDOWN_MS) d.wm++; }
+      else if (st === W_MASTERED) {
+        var readyM = dueAt.has(idx) ? (now >= dueAt.get(idx)) : (now - last >= MASTERED_COOLDOWN_MS);
+        if (readyM) d.wm++;
+      }
     });
     // Candidates that can be started now = free slots under the write-pool cap.
     var room = Math.max(0, poolTarget(false) - wlPool);
