@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-25.3";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-25.4";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -584,7 +584,15 @@
   function render() {
     renderHud();
     var view = $("view");
-    if (currentTab === "progress") { renderProgress(view); return; }
+    if (currentTab === "progress") {
+      // Settings edits re-render the whole progress/settings view; rebuilding
+      // #view (the sole scroll container) would otherwise snap it back to the
+      // top. Preserve the scroll position so editing a stepper stays in place.
+      var sy = view.scrollTop;
+      renderProgress(view);
+      view.scrollTop = sy;
+      return;
+    }
     renderCard(view);
   }
 
