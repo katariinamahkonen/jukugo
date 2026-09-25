@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-25.4";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-25.5";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 

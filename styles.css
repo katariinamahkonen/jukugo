@@ -79,7 +79,7 @@ body {
   padding: 8px 3px 6px; display: flex; flex-direction: column; align-items: center; }
 .statnum { font-size: 24px; font-weight: 800; line-height: 1; }
 /* "due now" count under each bucket number, in the reveal (Show answer) colour. */
-.statdue { font-size: 15px; font-weight: 800; line-height: 1; margin-top: 3px; color: var(--reveal); }
+.statdue { font-size: 15px; font-weight: 800; line-height: 1; margin-bottom: 3px; color: var(--reveal); }
 .statlabel { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px;
   margin-top: 4px; text-align: center; line-height: 1.15; }
 /* buckets of the single linear path (§6): reading new/learning/mastered, then
