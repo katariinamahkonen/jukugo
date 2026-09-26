@@ -65,14 +65,15 @@ The game runs endless **rounds**. Each round = **2 retention + 1 acquisition**
 
 ### Acquisition (×1) — `chooseAcquire()`
 A learning word is **"due"** once it hasn't been seen for at least the spacing
-gap (`acquireGapHours`, default 3 h, configurable). Priority:
+gap (`ACQUIRE_GAP_MS`, fixed at **30 min**). Priority:
 
 1. **Re-drill the most-overdue due learning word** — before introducing anything
    new. (The seed 一 counts as due immediately on first run.)
 2. **Else, if below the cap, introduce a NEW word.**
    - Reading: chosen by the priority picker (§6).
    - Writing: the next writing candidate (oldest-mastered `r_mastered` word).
-3. **Else (pool full, nothing due), review the oldest** learning word.
+3. **Else (pool full, nothing due), show nothing** from this bucket. The due
+   count keeps a 15-min lookahead so it warns just before words land.
 
 So new words appear only while no learning word is due and you're under the cap;
 struggling words (graded "Not yet") reliably return one spacing-gap after they
@@ -138,7 +139,7 @@ Everything is stored in `localStorage` under `jukugo.v1` (schema v3; the pre-ren
   "lastQuizzedAt": { "123": 1699999999999, ... },
   "unlockedLevel": 3,
   "progress": { "dailyStages": { "2026-08-03": { "rl":8,"rd":20,"rm":40,"wd":12,"wm":5 } } },
-  "settings": { "showFinnish": true, "poolTargetRead": 8, "poolTargetWrite": 8, "acquireGapHours": 3 }
+  "settings": { "showFinnish": true, "poolTargetRead": 8, "poolTargetWrite": 8 }
 }
 ```
 
@@ -146,7 +147,7 @@ Everything is stored in `localStorage` under `jukugo.v1` (schema v3; the pre-ren
   into a pool it is (re)set to the presentation time; `0`/absent means
   "not yet quizzed"; the reading seed (一) uses `-1` to sort first.
 - Old saves migrate: a single `poolTarget` → `poolTargetRead`/`poolTargetWrite`;
-  missing `acquireGapHours` → default 3.
+  the obsolete `acquireGapHours` setting is dropped (spacing gap is fixed at 30 min).
 - On boot the app requests `navigator.storage.persist()` to reduce eviction.
 
 ## 11. Backup & restore

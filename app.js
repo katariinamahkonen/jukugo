@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-25.5";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-26.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -29,16 +29,11 @@
     return Math.max(POOL_MIN, Math.min(POOL_MAX, n));
   }
   // Minimum spacing before a learning word is shown again: a word not seen for
-  // this long is "due" and reviewed before any new word. User-configurable
-  // (Settings), default 3h.
-  var ACQUIRE_GAP_DEFAULT_H = 3, ACQUIRE_GAP_MIN_H = 1, ACQUIRE_GAP_MAX_H = 48;
-  function acquireGapHours() {
-    var hh = settings.acquireGapHours;
-    if (hh == null) hh = ACQUIRE_GAP_DEFAULT_H;
-    return Math.max(ACQUIRE_GAP_MIN_H, Math.min(ACQUIRE_GAP_MAX_H, hh | 0));
-  }
+  // this long is "due" and reviewed before any new word. Fixed at 30 minutes.
+  // When nothing is due and the pool is full, no learning word is shown.
+  var ACQUIRE_GAP_MS = 30 * 60 * 1000;
+  var DUE_SOON_MS = 15 * 60 * 1000;    // lookahead: count learning words becoming due within 15 min
   var MAX_LEVEL = 8;   // recomputed from data below
-  var DUE_SOON_MS = 15 * 60 * 1000;                // lookahead for the learning "due" count
   // The "next day / next week / next month" buckets are scheduled by calendar
   // date, not by the exact clock time: a word graded at any time today is due at
   // local midnight after the given number of days, so everything due today shows
@@ -294,11 +289,11 @@
 
   // Choose the acquisition-slot word. The learning pool holds ONLY words that
   // have actually been quizzed (no pre-filled buffer). A learning word is "due"
-  // once it hasn't been seen for at least the spacing gap (acquireGapHours).
+  // once it hasn't been seen for at least the 30-minute gap (ACQUIRE_GAP_MS).
   // Priority:
   //   1) re-drill the most-overdue DUE learning word (before any new word);
-  //   2) else, if below the cap, introduce a brand-new word;
-  //   3) else (pool full, nothing due), review the oldest learning word.
+  //   2) else, if below the cap, introduce a new word.
+  // When the pool is full and nothing is due, show nothing from this bucket.
   Ball.prototype.chooseAcquire = function () {
     if (this.reading) this.maybeUnlock();
     var target = poolTarget(this.reading), self = this;
@@ -308,18 +303,14 @@
       var t = self.last.get(idx) || 0;
       if (t < oldestT) { oldestT = t; oldest = idx; }
     });
-    // 1) a learning word overdue by >= the spacing gap: review it first
-    if (oldest != null && (Date.now() - oldestT) >= acquireGapHours() * 3600000) return oldest;
-    // 2) nothing due and room under the cap: introduce a new word
+    // 1) a learning word not seen for >= the gap: review it first
+    if (oldest != null && (Date.now() - oldestT) >= ACQUIRE_GAP_MS) return oldest;
+    // 2) below the cap: introduce a new word (reading: next new; writing: read-mastered)
     if (size < target) {
       var nw = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
       if (nw != null) { this.addLearning(nw); return nw; }
     }
-    // 3) pool full (or no new word available): review the oldest learning word
-    if (oldest != null) return oldest;
-    // 4) empty pool, nothing to review: introduce whatever is next, if any
-    var nw2 = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
-    if (nw2 != null) { this.addLearning(nw2); return nw2; }
+    // 3) pool full (or nothing new) and nothing due: nothing from this bucket
     return null;
   };
 
@@ -403,7 +394,7 @@
   // ----------------------------------------------------------- persistence
   var KEY = "jukugo.v1";
   var LEGACY_KEY = "ballGame.v1";   // pre-rename key; read once if new key is absent
-  var settings = { showFinnish: true, romaji: false, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT, acquireGapHours: ACQUIRE_GAP_DEFAULT_H };
+  var settings = { showFinnish: true, romaji: false, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT };
   // Single progress structure: end-of-day snapshot of each stage's count.
   var progress = { dailyStages: {} };   // { 'YYYY-MM-DD': {rl,rd,rm,wl,wd,wm} }
   var unlockedLevel = 1;                 // reading curriculum level (writing has none)
@@ -415,10 +406,9 @@
       settings.poolTargetRead = settings.poolTarget || POOL_TARGET_DEFAULT;
     if (settings.poolTargetWrite == null)
       settings.poolTargetWrite = settings.poolTarget || POOL_TARGET_DEFAULT;
-    if (settings.acquireGapHours == null)
-      settings.acquireGapHours = ACQUIRE_GAP_DEFAULT_H;
     if (settings.romaji == null) settings.romaji = false;
     delete settings.poolTarget;
+    delete settings.acquireGapHours;   // spacing gap is now fixed at 30 min
   }
   function rebuildAll() {
     balls.recognition.unlocked = unlockedLevel;
@@ -620,18 +610,16 @@
   }
 
   // How many words in each bucket are due to be quizzed right now, using the same
-  // readiness rules as the pickers: learning words past the acquire gap, learned
+  // readiness rules as the pickers: learning words past the 30-min gap, learned
   // words past their day/week cooldown, mastered words past the ~4-week refresher.
-  // For the learning stage (rl/wl) we also count words that become due within the
-  // next DUE_SOON_MS, so the count doesn't read 0 while learning words trickle
-  // back one by one during a long session.
+  // For the learning stage (rl/wl) we also count words becoming due within the next
+  // DUE_SOON_MS (15 min), so the count gives a little warning before they land.
   // Write-learning also includes the read-mastered candidates that can be STARTED
   // right now, i.e. bounded by the remaining write-pool capacity ("Max words
   // learning (write)"): those are introduced one per round while there is room.
   function dueCounts() {
     var d = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
-    var now = Date.now(), gap = acquireGapHours() * 3600000, soon = gap - DUE_SOON_MS;
-    var rMastered = 0, wlPool = 0;
+    var now = Date.now(), soon = ACQUIRE_GAP_MS - DUE_SOON_MS, rMastered = 0, wlPool = 0;
     states.forEach(function (st, idx) {
       if (WORDS[idx]._excluded) return;
       var last = lastQuiz.get(idx) || 0;
@@ -1337,12 +1325,9 @@
     view.appendChild(poolRow("Max words learning (write)", false));
     view.appendChild(h("div", "sethint",
       "How many words you can be actively learning at once (max " + POOL_MAX + ", min " + POOL_MIN +
-      ") before reaching the learned level. Set separately for reading and writing."));
-    view.appendChild(gapRow());
-    view.appendChild(h("div", "sethint",
-      "Minimum spacing before a word you're learning is shown again. A word that hasn't been seen " +
-      "for this long is reviewed before any new word; new words are introduced only when nothing is " +
-      "due and you're below the max above. Range " + ACQUIRE_GAP_MIN_H + "\u2013" + ACQUIRE_GAP_MAX_H + " h."));
+      ") before reaching the learned level. Set separately for reading and writing. " +
+      "A learning word is shown again after 30 minutes; new words are introduced only " +
+      "when nothing is due and you're below the max."));
 
     // --- settings: OpenAI key/model for the "Get example sentence" button
     view.appendChild(h("h3", null, "Example sentences (OpenAI)"));
@@ -1480,27 +1465,6 @@
     save();
     render();
   }
-  function gapRow() {
-    var row = h("div", "setrow");
-    row.appendChild(h("span", "setlbl", "Repeat a learning word after (hours)"));
-    var ctl = h("div", "stepper");
-    var minus = h("button", "stepbtn", "\u2212");
-    var val = h("span", "setval", "" + acquireGapHours());
-    var plus = h("button", "stepbtn", "+");
-    minus.onclick = function () { setAcquireGap(acquireGapHours() - 1); };
-    plus.onclick = function () { setAcquireGap(acquireGapHours() + 1); };
-    ctl.appendChild(minus); ctl.appendChild(val); ctl.appendChild(plus);
-    row.appendChild(ctl);
-    return row;
-  }
-  function setAcquireGap(n) {
-    n = Math.max(ACQUIRE_GAP_MIN_H, Math.min(ACQUIRE_GAP_MAX_H, n | 0));
-    if (n === acquireGapHours()) return;
-    settings.acquireGapHours = n;
-    save();
-    render();
-  }
-
   function legend() {
     var wrap = h("div", "legend");
     STAGE_SERIES.forEach(function (s) {
