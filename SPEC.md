@@ -43,15 +43,13 @@ The **learning pool** for a phase = the words currently in `*_learning` **that
 have actually been quizzed at least once**. There is no pre-filled buffer of
 unquizzed words: a word enters the pool only at the moment it is first presented.
 
-- `poolTargetRead` / `poolTargetWrite` (Settings) cap the pool size per phase
-  (min 4, max 200, default 8). The cap limits how many words you are actively
-  learning at once before they graduate to `learned`.
-- The HUD "read learning" count therefore equals the number of quizzed words in
-  `r_learning` (a freshly introduced word that hasn't been graded yet is not
-  counted until graded).
-- **Lowering the cap** trims the pool down to the new size, evicting
-  **not-yet-quizzed words first**, then hardest (highest level, then rarest).
-  Quizzed words are never dropped while the pool is at/under the new cap.
+- `poolTargetRead` / `poolTargetWrite` (Settings) cap the active load per phase
+  (min 4, max 200, default 8). The cap counts the **learning** bucket and the
+  **"ask tomorrow"** bucket together (`Ball.acquiredCount`); "ask next week" and
+  mastered words (deferred via `dueAt`) do not count. New words are introduced
+  only while this combined count is below the cap.
+- **Lowering the cap** never drops words already started — it only pauses the
+  intake of new words until the combined count falls back below the cap.
 
 ## 5. Rounds
 
@@ -69,7 +67,8 @@ gap (`ACQUIRE_GAP_MS`, fixed at **30 min**). Priority:
 
 1. **Re-drill the most-overdue due learning word** — before introducing anything
    new. (The seed 一 counts as due immediately on first run.)
-2. **Else, if below the cap, introduce a NEW word.**
+2. **Else, if below the cap** (learning + "ask tomorrow" combined)**, introduce a
+   NEW word.**
    - Reading: chosen by the priority picker (§6).
    - Writing: the next writing candidate (oldest-mastered `r_mastered` word).
 3. **Else (pool full, nothing due), show nothing** from this bucket. The due

@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-26.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-28.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -19,8 +19,9 @@
   var NON_JOYO = 100000;
   var INF = Infinity;
   // Learning-pool cap per phase (settings.poolTargetRead / *Write): how many
-  // words you can be actively learning at once before they reach the learned
-  // level. New words are introduced only while the pool is below this cap.
+  // words you can be actively learning at once, counting the learning bucket and
+  // the "ask tomorrow" bucket together (see Ball.acquiredCount). New words are
+  // introduced only while that combined count is below this cap.
   var POOL_TARGET_DEFAULT = 8;
   var POOL_MIN = 4, POOL_MAX = 200;
   function poolTarget(reading) {
@@ -173,37 +174,6 @@
   Ball.prototype.addLearning = function (idx) { // enter this phase's learning pool
     states.set(idx, this.S.LEARNING); this.learning.add(idx); lastQuiz.set(idx, 0);
   };
-  // Shrink the learning pool to `target` by returning surplus words to the pool
-  // they came from: reading -> `none` (re-pickable by priority), writing ->
-  // `r_mastered` (re-pickable as a writing candidate). Evict the HARDEST words
-  // first — highest difficulty level, then rarest — so easier, more common words
-  // keep flowing and sticky hard cards don't clog the pool. Ball size / kanji
-  // counts are unaffected (only learning-pool words are touched).
-  Ball.prototype.trimLearning = function (target) {
-    if (this.learning.size <= target) return 0;
-    var order = 0, arr = [];
-    this.learning.forEach(function (idx) { arr.push({ idx: idx, order: order++ }); });
-    arr.sort(function (a, b) {
-      // evict not-yet-quizzed "filler" first (it's just unused capacity under the
-      // cap); only quizzed words are dropped if the pool is STILL over target.
-      var aq = ((lastQuiz.get(a.idx) || 0) !== 0) ? 1 : 0;
-      var bq = ((lastQuiz.get(b.idx) || 0) !== 0) ? 1 : 0;
-      if (aq !== bq) return aq - bq;                     // unquizzed first
-      var wa = WORDS[a.idx], wb = WORDS[b.idx];
-      if (wa.l !== wb.l) return wb.l - wa.l;            // then hardest level first
-      if (wa._rank !== wb._rank) return wb._rank - wa._rank; // then rarest first
-      return b.order - a.order;                          // then newest-added first
-    });
-    var remove = this.learning.size - target;
-    for (var j = 0; j < remove; j++) {
-      var idx = arr[j].idx;
-      this.learning.delete(idx);
-      if (this.reading) { states.delete(idx); lastQuiz.delete(idx); }
-      else { states.set(idx, R_MASTERED); lastQuiz.set(idx, 0); }  // back to candidate
-    }
-    return remove;
-  };
-
   // Priority pick over the `none` pool within unlocked levels (§8).
   //   Phase A = consolidate a COMMON word (no new kanji, rank <= RARE_RANK)
   //   Phase B = introduce a new kanji
@@ -287,30 +257,40 @@
     return c.length ? c[0] : null;
   };
 
+  // The learning-stage load counted against the pool cap: words still being
+  // acquired (the learning bucket) PLUS those in the "ask tomorrow" bucket
+  // (learned with the default next-day schedule). "Ask next week" and mastered
+  // words (deferred via dueAt) don't count toward the cap.
+  Ball.prototype.acquiredCount = function () {
+    var n = this.learning.size;
+    this.learned.forEach(function (i) { if (!dueAt.has(i)) n++; });
+    return n;
+  };
+
   // Choose the acquisition-slot word. The learning pool holds ONLY words that
   // have actually been quizzed (no pre-filled buffer). A learning word is "due"
   // once it hasn't been seen for at least the 30-minute gap (ACQUIRE_GAP_MS).
   // Priority:
   //   1) re-drill the most-overdue DUE learning word (before any new word);
   //   2) else, if below the cap, introduce a new word.
-  // When the pool is full and nothing is due, show nothing from this bucket.
+  // The cap counts the learning + "ask tomorrow" buckets together (acquiredCount).
+  // When at/over the cap and nothing is due, show nothing from this bucket.
   Ball.prototype.chooseAcquire = function () {
     if (this.reading) this.maybeUnlock();
     var target = poolTarget(this.reading), self = this;
-    var oldest = null, oldestT = INF, size = 0;
+    var oldest = null, oldestT = INF;
     this.learning.forEach(function (idx) {
-      size++;
       var t = self.last.get(idx) || 0;
       if (t < oldestT) { oldestT = t; oldest = idx; }
     });
     // 1) a learning word not seen for >= the gap: review it first
     if (oldest != null && (Date.now() - oldestT) >= ACQUIRE_GAP_MS) return oldest;
-    // 2) below the cap: introduce a new word (reading: next new; writing: read-mastered)
-    if (size < target) {
+    // 2) below the cap (learning + "ask tomorrow"): introduce a new word
+    if (this.acquiredCount() < target) {
       var nw = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
       if (nw != null) { this.addLearning(nw); return nw; }
     }
-    // 3) pool full (or nothing new) and nothing due: nothing from this bucket
+    // 3) at/over the cap (or nothing new) and nothing due: nothing from this bucket
     return null;
   };
 
@@ -619,7 +599,7 @@
   // learning (write)"): those are introduced one per round while there is room.
   function dueCounts() {
     var d = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
-    var now = Date.now(), soon = ACQUIRE_GAP_MS - DUE_SOON_MS, rMastered = 0, wlPool = 0;
+    var now = Date.now(), soon = ACQUIRE_GAP_MS - DUE_SOON_MS, rMastered = 0, wlPool = 0, wdPool = 0;
     states.forEach(function (st, idx) {
       if (WORDS[idx]._excluded) return;
       var last = lastQuiz.get(idx) || 0;
@@ -635,15 +615,17 @@
       }
       else if (st === W_LEARNED) {
         if (dueAt.has(idx)) { if (now >= dayStart(dueAt.get(idx))) d.ww++; }
-        else if (now >= dueDay(last, RETENTION_DAYS)) d.wd++;
+        else { wdPool++;                                  // "ask tomorrow" occupies the cap too
+          if (now >= dueDay(last, RETENTION_DAYS)) d.wd++; }
       }
       else if (st === W_MASTERED) {
         var readyM = dueAt.has(idx) ? (now >= dayStart(dueAt.get(idx))) : (now >= dueDay(last, MASTERED_DAYS));
         if (readyM) d.wm++;
       }
     });
-    // Candidates that can be started now = free slots under the write-pool cap.
-    var room = Math.max(0, poolTarget(false) - wlPool);
+    // Candidates that can be started now = free slots under the write cap, which
+    // counts the learning + "ask tomorrow" buckets together.
+    var room = Math.max(0, poolTarget(false) - wlPool - wdPool);
     d.wl += Math.min(rMastered, room);
     return d;
   }
@@ -1325,9 +1307,10 @@
     view.appendChild(poolRow("Max words learning (write)", false));
     view.appendChild(h("div", "sethint",
       "How many words you can be actively learning at once (max " + POOL_MAX + ", min " + POOL_MIN +
-      ") before reaching the learned level. Set separately for reading and writing. " +
-      "A learning word is shown again after 30 minutes; new words are introduced only " +
-      "when nothing is due and you're below the max."));
+      "), counting the \u201clearning\u201d and \u201cask tomorrow\u201d buckets together. " +
+      "Set separately for reading and writing. A learning word is shown again after 30 " +
+      "minutes; new words are introduced only when nothing is due and you're below the max. " +
+      "Lowering the max never drops words already started \u2014 it just pauses new intake."));
 
     // --- settings: OpenAI key/model for the "Get example sentence" button
     view.appendChild(h("h3", null, "Example sentences (OpenAI)"));
@@ -1460,8 +1443,8 @@
     var key = reading ? "poolTargetRead" : "poolTargetWrite";
     if (n === settings[key]) return;
     settings[key] = n;
-    var b = reading ? balls.recognition : balls.production;
-    b.trimLearning(n);   // shrink surplus (no-op when increasing; new words flow in over time)
+    // Lowering the cap never drops words already in progress; it only throttles
+    // the intake of new words until the active count falls back below the cap.
     save();
     render();
   }
@@ -1627,7 +1610,7 @@
       ball: ball, buildRound: buildRound, nextCard: nextCard, grade: grade,
       getQueue: function () { return queue; }, load: load, save: save,
       kanaToRomaji: kanaToRomaji, states: states, lastQuiz: lastQuiz,
-      stageCounts: stageCounts, dueCounts: dueCounts
+      stageCounts: stageCounts, dueCounts: dueCounts, settings: settings
     };
   }
 })();
