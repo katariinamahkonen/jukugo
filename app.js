@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-28.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-09-29.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -19,9 +19,10 @@
   var NON_JOYO = 100000;
   var INF = Infinity;
   // Learning-pool cap per phase (settings.poolTargetRead / *Write): how many
-  // words you can be actively learning at once, counting the learning bucket and
-  // the "ask tomorrow" bucket together (see Ball.acquiredCount). New words are
-  // introduced only while that combined count is below this cap.
+  // words can be on your plate at once. The gate counts every bucket that is due
+  // right now — the learning bucket, the "ask tomorrow" bucket, plus any "ask
+  // next week" and mastered words currently due (see Ball.acquiredCount). New
+  // words are introduced only while that combined count is below this cap.
   var POOL_TARGET_DEFAULT = 8;
   var POOL_MIN = 4, POOL_MAX = 200;
   function poolTarget(reading) {
@@ -257,13 +258,23 @@
     return c.length ? c[0] : null;
   };
 
-  // The learning-stage load counted against the pool cap: words still being
-  // acquired (the learning bucket) PLUS those in the "ask tomorrow" bucket
-  // (learned with the default next-day schedule). "Ask next week" and mastered
-  // words (deferred via dueAt) don't count toward the cap.
+  // The active load counted against the pool cap = words that currently need
+  // attention: the whole learning bucket, the whole "ask tomorrow" bucket, PLUS
+  // any "ask next week" and mastered words that are due right now. Dormant weekly/
+  // mastered words (not yet due) don't count, so new-word intake is gated by the
+  // real current workload across all buckets, not just the daily rotation.
   Ball.prototype.acquiredCount = function () {
-    var n = this.learning.size;
-    this.learned.forEach(function (i) { if (!dueAt.has(i)) n++; });
+    var self = this, now = Date.now(), n = this.learning.size;
+    this.learned.forEach(function (i) {
+      if (!dueAt.has(i)) n++;                          // "ask tomorrow": always active
+      else if (now >= dayStart(dueAt.get(i))) n++;     // "ask next week": only when due
+    });
+    this.mastered.forEach(function (i) {
+      if (states.get(i) !== self.S.MASTERED) return;   // only this phase's plateau
+      var ready = dueAt.has(i) ? (now >= dayStart(dueAt.get(i)))
+                               : (now >= dueDay(self.last.get(i) || 0, MASTERED_DAYS));
+      if (ready) n++;                                   // mastered refresher due now
+    });
     return n;
   };
 
@@ -595,11 +606,11 @@
   // For the learning stage (rl/wl) we also count words becoming due within the next
   // DUE_SOON_MS (15 min), so the count gives a little warning before they land.
   // Write-learning also includes the read-mastered candidates that can be STARTED
-  // right now, i.e. bounded by the remaining write-pool capacity ("Max words
-  // learning (write)"): those are introduced one per round while there is room.
+  // right now, i.e. bounded by the remaining write capacity: the cap minus the
+  // current active load across ALL due buckets (acquiredCount).
   function dueCounts() {
     var d = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
-    var now = Date.now(), soon = ACQUIRE_GAP_MS - DUE_SOON_MS, rMastered = 0, wlPool = 0, wdPool = 0;
+    var now = Date.now(), soon = ACQUIRE_GAP_MS - DUE_SOON_MS, rMastered = 0;
     states.forEach(function (st, idx) {
       if (WORDS[idx]._excluded) return;
       var last = lastQuiz.get(idx) || 0;
@@ -610,22 +621,20 @@
         if (now >= dueDay(last, MASTERED_DAYS)) d.rm++;   // due for the reading refresher
       }
       else if (st === W_LEARNING) {
-        wlPool++;                                         // occupies write-pool capacity
         if (last !== 0 && now - last >= soon) d.wl++;
       }
       else if (st === W_LEARNED) {
         if (dueAt.has(idx)) { if (now >= dayStart(dueAt.get(idx))) d.ww++; }
-        else { wdPool++;                                  // "ask tomorrow" occupies the cap too
-          if (now >= dueDay(last, RETENTION_DAYS)) d.wd++; }
+        else if (now >= dueDay(last, RETENTION_DAYS)) d.wd++;
       }
       else if (st === W_MASTERED) {
         var readyM = dueAt.has(idx) ? (now >= dayStart(dueAt.get(idx))) : (now >= dueDay(last, MASTERED_DAYS));
         if (readyM) d.wm++;
       }
     });
-    // Candidates that can be started now = free slots under the write cap, which
-    // counts the learning + "ask tomorrow" buckets together.
-    var room = Math.max(0, poolTarget(false) - wlPool - wdPool);
+    // Candidates that can be started now = free slots under the write cap, where
+    // the current load counts every bucket that's due right now (acquiredCount).
+    var room = Math.max(0, poolTarget(false) - balls.production.acquiredCount());
     d.wl += Math.min(rMastered, room);
     return d;
   }
@@ -1306,11 +1315,11 @@
     view.appendChild(poolRow("Max words learning (read)", true));
     view.appendChild(poolRow("Max words learning (write)", false));
     view.appendChild(h("div", "sethint",
-      "How many words you can be actively learning at once (max " + POOL_MAX + ", min " + POOL_MIN +
-      "), counting the \u201clearning\u201d and \u201cask tomorrow\u201d buckets together. " +
-      "Set separately for reading and writing. A learning word is shown again after 30 " +
-      "minutes; new words are introduced only when nothing is due and you're below the max. " +
-      "Lowering the max never drops words already started \u2014 it just pauses new intake."));
+      "How many words can be on your plate at once (max " + POOL_MAX + ", min " + POOL_MIN +
+      "), counting every bucket that's due right now \u2014 \u201clearning\u201d and \u201cask tomorrow\u201d " +
+      "plus any due \u201cask next week\u201d and mastered reviews. Set separately for reading and writing. " +
+      "A learning word is shown again after 30 minutes; new words are introduced only when you're below " +
+      "the max. Lowering the max never drops words already started \u2014 it just pauses new intake."));
 
     // --- settings: OpenAI key/model for the "Get example sentence" button
     view.appendChild(h("h3", null, "Example sentences (OpenAI)"));
