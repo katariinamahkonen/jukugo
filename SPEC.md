@@ -68,12 +68,25 @@ gap (`ACQUIRE_GAP_MS`, fixed at **30 min**). Priority:
 
 1. **Re-drill the most-overdue due learning word** — before introducing anything
    new. (The seed 一 counts as due immediately on first run.)
-2. **Else, if below the cap** (learning + "ask tomorrow" + due weekly + due
-   mastered, see `acquiredCount`)**, introduce a NEW word.**
+2. **Else, if below the cap** (learning + "ask tomorrow" + today's smoothed share
+   of due weekly + due mastered, see `acquiredCount`)**, introduce a NEW word.**
    - Reading: chosen by the priority picker (§6).
    - Writing: the next writing candidate (oldest-mastered `r_mastered` word).
 3. **Else (pool full, nothing due), show nothing** from this bucket. The due
    count keeps a 15-min lookahead so it warns just before words land.
+
+### Daily smoothing of the monthly & weekly buckets
+To avoid big day-to-day spikes, the **monthly (mastered)** and **weekly** buckets
+are rate-limited per local day; the overflow rolls to following days:
+- **Monthly:** daily cap = `ceil(count / 28)`, where `count` = mastered words due
+  within the next 28 days (through today+27). Applies to both reading and writing
+  mastered refreshers.
+- **Weekly (writing only):** daily cap = `ceil(bucketSize / 7)`.
+- `dailyQuiz` (persisted, reset at the first interaction of a new local day)
+  tracks how many words from each smoothed bucket were quizzed today; the round
+  machinery stops offering that bucket once the cap is reached. The HUD due number
+  shows today's scheduled share (due now, capped by the remaining quota), not the
+  full deferred backlog.
 
 So new words appear only while no learning word is due and you're under the cap;
 struggling words (graded "Not yet") reliably return one spacing-gap after they
@@ -137,6 +150,8 @@ Everything is stored in `localStorage` under `jukugo.v1` (schema v3; the pre-ren
   "activeMode": "recognition",
   "states": { "123": "r_learned", ... },
   "lastQuizzedAt": { "123": 1699999999999, ... },
+  "dueAt": { "456": 1702000000000, ... },
+  "dailyQuiz": { "date": "2026-08-03", "rm": 2, "wm": 4, "ww": 6 },
   "unlockedLevel": 3,
   "progress": { "dailyStages": { "2026-08-03": { "rl":8,"rd":20,"rm":40,"wd":12,"wm":5 } } },
   "settings": { "showFinnish": true, "poolTargetRead": 8, "poolTargetWrite": 8 }

@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-09-29.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-10-22.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -129,6 +129,11 @@
   var dueAt = new Map();    // idx -> explicit next-due ms (overrides the default
                             // cooldown; set by "Ask again next week" for learned
                             // words and by re-confirming a mastered word ~2 months)
+  // Daily smoothing counters: how many words from the smoothed buckets have been
+  // quizzed today (local date), so the per-day caps for the monthly (mastered)
+  // and weekly buckets spread their load evenly instead of spiking. Reset at the
+  // first interaction of a new local day (rolloverDaily). Persisted in save().
+  var dailyQuiz = { date: "", rm: 0, wm: 0, ww: 0 };
 
   // A Ball holds the derived, per-phase view (sets + kanji connectivity + size).
   function Ball(phase) {
@@ -260,21 +265,14 @@
 
   // The active load counted against the pool cap = words that currently need
   // attention: the whole learning bucket, the whole "ask tomorrow" bucket, PLUS
-  // any "ask next week" and mastered words that are due right now. Dormant weekly/
-  // mastered words (not yet due) don't count, so new-word intake is gated by the
-  // real current workload across all buckets, not just the daily rotation.
+  // today's SMOOTHED share of the weekly and mastered buckets (not the full due
+  // backlog — only the portion actually scheduled for today). This keeps new-word
+  // intake gated by the real daily workload, not by a large deferred backlog.
   Ball.prototype.acquiredCount = function () {
-    var self = this, now = Date.now(), n = this.learning.size;
-    this.learned.forEach(function (i) {
-      if (!dueAt.has(i)) n++;                          // "ask tomorrow": always active
-      else if (now >= dayStart(dueAt.get(i))) n++;     // "ask next week": only when due
-    });
-    this.mastered.forEach(function (i) {
-      if (states.get(i) !== self.S.MASTERED) return;   // only this phase's plateau
-      var ready = dueAt.has(i) ? (now >= dayStart(dueAt.get(i)))
-                               : (now >= dueDay(self.last.get(i) || 0, MASTERED_DAYS));
-      if (ready) n++;                                   // mastered refresher due now
-    });
+    var n = this.learning.size;
+    this.learned.forEach(function (i) { if (!dueAt.has(i)) n++; });   // "ask tomorrow"
+    n += weeklyToday(this);                                           // today's weekly share
+    n += masteredToday(this);                                         // today's mastered share
     return n;
   };
 
@@ -380,6 +378,65 @@
   function dayStart(t) { var d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); }   // local midnight of t
   // Local midnight of the day that is `days` calendar days after anchor's day.
   function dueDay(anchor, days) { var d = new Date(anchor); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + days); return d.getTime(); }
+
+  // ---- daily smoothing of the monthly (mastered) and weekly buckets ----------
+  // Reset the per-day counters when the local date rolls over.
+  function rolloverDaily() {
+    var today = ymdOf(Date.now());
+    if (dailyQuiz.date !== today) dailyQuiz = { date: today, rm: 0, wm: 0, ww: 0 };
+  }
+  // A mastered word's next-due timestamp (explicit dueAt override, else the
+  // default ~4-week refresher from its last review).
+  function masteredDueAt(ball, i) {
+    return dueAt.has(i) ? dayStart(dueAt.get(i)) : dueDay(ball.last.get(i) || 0, MASTERED_DAYS);
+  }
+  // Monthly cap: words due within the next 28 days (through today+27), spread
+  // evenly => ceil(count / 28) per day.
+  function masteredDailyLimit(ball) {
+    var top = ball.S.MASTERED, horizon = dueDay(Date.now(), 28), count = 0;
+    ball.mastered.forEach(function (i) {
+      if (WORDS[i]._excluded || states.get(i) !== top) return;
+      if (masteredDueAt(ball, i) < horizon) count++;
+    });
+    return Math.ceil(count / 28);
+  }
+  // Weekly cap: the whole weekly bucket spread over 7 days => ceil(size / 7).
+  function weeklyDailyLimit(ball) {
+    var count = 0;
+    ball.learned.forEach(function (i) { if (dueAt.has(i) && !WORDS[i]._excluded) count++; });
+    return Math.ceil(count / 7);
+  }
+  // Mastered words due right now (this phase's plateau).
+  function masteredDueNow(ball) {
+    var top = ball.S.MASTERED, now = Date.now(), c = 0;
+    ball.mastered.forEach(function (i) {
+      if (WORDS[i]._excluded || states.get(i) !== top) return;
+      if (now >= masteredDueAt(ball, i)) c++;
+    });
+    return c;
+  }
+  // Weekly words due right now.
+  function weeklyDueNow(ball) {
+    var now = Date.now(), c = 0;
+    ball.learned.forEach(function (i) {
+      if (!dueAt.has(i) || WORDS[i]._excluded) return;
+      if (now >= dayStart(dueAt.get(i))) c++;
+    });
+    return c;
+  }
+  // Remaining quota for today = cap minus already quizzed today.
+  function masteredRemaining(ball) {
+    rolloverDaily();
+    return Math.max(0, masteredDailyLimit(ball) - dailyQuiz[ball.reading ? "rm" : "wm"]);
+  }
+  function weeklyRemaining(ball) {
+    rolloverDaily();
+    return Math.max(0, weeklyDailyLimit(ball) - dailyQuiz.ww);
+  }
+  // How many mastered / weekly words to actually quiz today = due now, capped by
+  // the remaining daily quota (the smoothed amount).
+  function masteredToday(ball) { return Math.min(masteredDueNow(ball), masteredRemaining(ball)); }
+  function weeklyToday(ball) { return Math.min(weeklyDueNow(ball), weeklyRemaining(ball)); }
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
   // ----------------------------------------------------------- persistence
@@ -413,6 +470,7 @@
     if (!raw) return false;
     activeMode = raw.activeMode || "recognition";
     if (raw.settings) settings = raw.settings;
+    if (raw.dailyQuiz && raw.dailyQuiz.date) dailyQuiz = raw.dailyQuiz;
     migrateSettings();
     states.clear(); lastQuiz.clear(); dueAt.clear();
     if (raw.schemaVersion >= 3 && raw.states) {
@@ -476,7 +534,7 @@
     dueAt.forEach(function (t, idx) { if (states.has(idx)) due[idx] = t; });
     var out = {
       schemaVersion: 3, activeMode: activeMode, settings: settings,
-      states: st, lastQuizzedAt: last, dueAt: due,
+      states: st, lastQuizzedAt: last, dueAt: due, dailyQuiz: dailyQuiz,
       unlockedLevel: balls.recognition.unlocked, progress: progress
     };
     try { localStorage.setItem(KEY, JSON.stringify(out)); } catch (e) {}
@@ -496,6 +554,7 @@
   function buildRound() {
     var b = ball();
     b.maybeUnlock();
+    rolloverDaily();
     queue = [];
     var exclude = new Set();
     // Add a picked word to the round (no-op if none / already queued this round).
@@ -513,14 +572,14 @@
     }
 
     if (b.reading) {
-      slot(b.pickMastered(exclude));
+      if (masteredRemaining(b) > 0) slot(b.pickMastered(exclude));  // smoothed monthly
       slot(b.pickAskDay(exclude));
       acquire();
     } else {
       acquire();                    // read-mastered / learning
       slot(b.pickAskDay(exclude));  // ask next day
-      slot(b.pickAskWeek(exclude)); // ask next week
-      slot(b.pickMastered(exclude));
+      if (weeklyRemaining(b) > 0) slot(b.pickAskWeek(exclude));     // smoothed weekly
+      if (masteredRemaining(b) > 0) slot(b.pickMastered(exclude));  // smoothed monthly
     }
     // Fisher-Yates shuffle so bucket order can't be inferred from card position.
     for (var i = queue.length - 1; i > 0; i--) {
@@ -536,9 +595,14 @@
   }
 
   function grade(card, g) {            // g: 'know'|'good'|'week'|'hard'
-    var b = ball(), idx = card.idx, now = Date.now();
-    // Was this card drawn from the mastered set (i.e. a mastered refresher)?
-    var fromMastered = (states.get(idx) === b.S.MASTERED);
+    var b = ball(), idx = card.idx, now = Date.now(), st0 = states.get(idx);
+    // Classify the card's source bucket (from its state BEFORE enterBall mutates):
+    var fromMastered = (st0 === b.S.MASTERED);              // mastered refresher
+    var fromWeekly = (st0 === b.S.LEARNED && dueAt.has(idx)); // "ask next week"
+    // Tally today's smoothed buckets so the per-day caps hold across the session.
+    rolloverDaily();
+    if (fromMastered) dailyQuiz[b.reading ? "rm" : "wm"]++;
+    else if (fromWeekly) dailyQuiz.ww++;
     if (g === "know") b.enterBall(idx, "mastered");
     else if (g === "good" || g === "week") b.enterBall(idx, "learned");
     else b.toLearning(idx);            // hard
@@ -607,7 +671,10 @@
   // DUE_SOON_MS (15 min), so the count gives a little warning before they land.
   // Write-learning also includes the read-mastered candidates that can be STARTED
   // right now, i.e. bounded by the remaining write capacity: the cap minus the
-  // current active load across ALL due buckets (acquiredCount).
+  // current active load across all buckets (acquiredCount).
+  // The monthly (rm/wm) and weekly (ww) buckets are SMOOTHED: their due number is
+  // today's scheduled share (due now, capped by the per-day quota), not the full
+  // deferred backlog — matching what the round machinery will actually quiz today.
   function dueCounts() {
     var d = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
     var now = Date.now(), soon = ACQUIRE_GAP_MS - DUE_SOON_MS, rMastered = 0;
@@ -616,22 +683,16 @@
       var last = lastQuiz.get(idx) || 0;
       if (st === R_LEARNING) { if (last !== 0 && now - last >= soon) d.rl++; }
       else if (st === R_LEARNED) { if (now >= dueDay(last, RETENTION_DAYS)) d.rd++; }
-      else if (st === R_MASTERED) {
-        rMastered++;                                      // a write-learning candidate
-        if (now >= dueDay(last, MASTERED_DAYS)) d.rm++;   // due for the reading refresher
-      }
-      else if (st === W_LEARNING) {
-        if (last !== 0 && now - last >= soon) d.wl++;
-      }
+      else if (st === R_MASTERED) { rMastered++; }        // a write-learning candidate
+      else if (st === W_LEARNING) { if (last !== 0 && now - last >= soon) d.wl++; }
       else if (st === W_LEARNED) {
-        if (dueAt.has(idx)) { if (now >= dayStart(dueAt.get(idx))) d.ww++; }
-        else if (now >= dueDay(last, RETENTION_DAYS)) d.wd++;
-      }
-      else if (st === W_MASTERED) {
-        var readyM = dueAt.has(idx) ? (now >= dayStart(dueAt.get(idx))) : (now >= dueDay(last, MASTERED_DAYS));
-        if (readyM) d.wm++;
+        if (!dueAt.has(idx) && now >= dueDay(last, RETENTION_DAYS)) d.wd++;  // "ask tomorrow"
       }
     });
+    // Smoothed per-day share of the monthly and weekly buckets.
+    d.rm = masteredToday(balls.recognition);
+    d.wm = masteredToday(balls.production);
+    d.ww = weeklyToday(balls.production);
     // Candidates that can be started now = free slots under the write cap, where
     // the current load counts every bucket that's due right now (acquiredCount).
     var room = Math.max(0, poolTarget(false) - balls.production.acquiredCount());
@@ -1619,7 +1680,9 @@
       ball: ball, buildRound: buildRound, nextCard: nextCard, grade: grade,
       getQueue: function () { return queue; }, load: load, save: save,
       kanaToRomaji: kanaToRomaji, states: states, lastQuiz: lastQuiz,
-      stageCounts: stageCounts, dueCounts: dueCounts, settings: settings
+      stageCounts: stageCounts, dueCounts: dueCounts, settings: settings,
+      dueAt: dueAt, getDailyQuiz: function () { return dailyQuiz; },
+      masteredDailyLimit: masteredDailyLimit, weeklyDailyLimit: weeklyDailyLimit
     };
   }
 })();
