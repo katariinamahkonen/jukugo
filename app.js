@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-10-22.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-10-23.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -294,10 +294,19 @@
     });
     // 1) a learning word not seen for >= the gap: review it first
     if (oldest != null && (Date.now() - oldestT) >= ACQUIRE_GAP_MS) return oldest;
-    // 2) below the cap (learning + "ask tomorrow"): introduce a new word
+    // 2) below the cap, and no learning word due: introduce a new word.
     if (this.acquiredCount() < target) {
-      var nw = this.reading ? this.pickNextWord() : this.nextWritingCandidate();
-      if (nw != null) { this.addLearning(nw); return nw; }
+      if (this.reading) {
+        var nw = this.pickNextWord();           // brand-new word: enters r_learning now
+        if (nw != null) { this.addLearning(nw); return nw; }
+      } else {
+        // Writing: present the next read-mastered candidate as a NEW write card, but
+        // leave it in r_mastered until it's actually quizzed in writing. It enters
+        // the w_learning path only when first graded (see grade()), so an unanswered
+        // candidate never inflates the write pool.
+        var cand = this.nextWritingCandidate();
+        if (cand != null) return cand;
+      }
     }
     // 3) at/over the cap (or nothing new) and nothing due: nothing from this bucket
     return null;
@@ -568,7 +577,11 @@
       var a = b.chooseAcquire();
       if (a == null || exclude.has(a)) return;
       exclude.add(a);
-      queue.push({ idx: a, isNew: (b.last.get(a) || 0) <= 0 });
+      // "new" = first time this word is seen in the current phase. Reading: never
+      // graded (lastQuiz <= 0). Writing: still in r_mastered, i.e. not yet moved
+      // into the write path.
+      var isNew = b.reading ? ((b.last.get(a) || 0) <= 0) : (states.get(a) === R_MASTERED);
+      queue.push({ idx: a, isNew: isNew });
     }
 
     if (b.reading) {
@@ -829,10 +842,10 @@
     }
     var w = WORDS[current.idx];
     var card = h("div", "card");
-    // "new word" only in read mode: the shared last-quizzed map can't tell
-    // "first time in writing" apart without a separate write-quiz field (a stored-
-    // data schema change), so the tag is omitted entirely in write mode.
-    if (current.isNew && activeMode === "recognition") card.appendChild(h("div", "newtag", "new word"));
+    // "new word" tag: reading = a never-graded word; writing = a word being quizzed
+    // in writing for the first time (still r_mastered until this grade). buildRound
+    // sets current.isNew per phase.
+    if (current.isNew) card.appendChild(h("div", "newtag", "new word"));
 
     var front = h("div", "front");
     if (activeMode === "recognition") {

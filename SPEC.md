@@ -70,8 +70,9 @@ gap (`ACQUIRE_GAP_MS`, fixed at **30 min**). Priority:
    new. (The seed 一 counts as due immediately on first run.)
 2. **Else, if below the cap** (learning + "ask tomorrow" + today's smoothed share
    of due weekly + due mastered, see `acquiredCount`)**, introduce a NEW word.**
-   - Reading: chosen by the priority picker (§6).
-   - Writing: the next writing candidate (oldest-mastered `r_mastered` word).
+   - Reading: chosen by the priority picker (§6); enters `r_learning` immediately.
+   - Writing: the next writing candidate (oldest-mastered `r_mastered` word),
+     presented as a `new word` but left in `r_mastered` until its first write grade.
 3. **Else (pool full, nothing due), show nothing** from this bucket. The due
    count keeps a 15-min lookahead so it warns just before words land.
 
@@ -93,8 +94,14 @@ struggling words (graded "Not yet") reliably return one spacing-gap after they
 were last seen. (Note: words graded "Pretty good" leave the learning pool into
 `learned` and are then governed by the 24 h retention cooldown, not this gap.)
 
-A word shown for the very first time (never graded) is flagged **`new word`**
-and shows a badge on the card.
+A word shown for the very first time **in the current phase** is flagged
+**`new word`** and shows a badge on the card:
+- Reading: a word that has never been graded (`lastQuiz <= 0`).
+- Writing: a word still in `r_mastered` — i.e. being quizzed in writing for the
+  first time. A read-mastered candidate is presented as a new write card but stays
+  in `r_mastered` until it is actually graded; only that first write grade moves it
+  into the writing path (`w_learning`/`w_learned`/… per the grade). So an unanswered
+  candidate never inflates the write pool or the intake gate.
 
 ## 6. New-word priority (reading) — `pickNextWord()`
 
