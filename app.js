@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-10-23.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-10-23.2";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -682,21 +682,20 @@
   // words past their day/week cooldown, mastered words past the ~4-week refresher.
   // For the learning stage (rl/wl) we also count words becoming due within the next
   // DUE_SOON_MS (15 min), so the count gives a little warning before they land.
-  // Write-learning also includes the read-mastered candidates that can be STARTED
-  // right now, i.e. bounded by the remaining write capacity: the cap minus the
-  // current active load across all buckets (acquiredCount).
+  // Each due number counts ONLY words that are actually in that bucket, so it can
+  // never exceed the bucket's own size (read-mastered candidates are NOT counted
+  // as write-learning — they only become w_learning on their first write quiz).
   // The monthly (rm/wm) and weekly (ww) buckets are SMOOTHED: their due number is
   // today's scheduled share (due now, capped by the per-day quota), not the full
   // deferred backlog — matching what the round machinery will actually quiz today.
   function dueCounts() {
     var d = { rl: 0, rd: 0, rm: 0, wl: 0, wd: 0, ww: 0, wm: 0 };
-    var now = Date.now(), soon = ACQUIRE_GAP_MS - DUE_SOON_MS, rMastered = 0;
+    var now = Date.now(), soon = ACQUIRE_GAP_MS - DUE_SOON_MS;
     states.forEach(function (st, idx) {
       if (WORDS[idx]._excluded) return;
       var last = lastQuiz.get(idx) || 0;
       if (st === R_LEARNING) { if (last !== 0 && now - last >= soon) d.rl++; }
       else if (st === R_LEARNED) { if (now >= dueDay(last, RETENTION_DAYS)) d.rd++; }
-      else if (st === R_MASTERED) { rMastered++; }        // a write-learning candidate
       else if (st === W_LEARNING) { if (last !== 0 && now - last >= soon) d.wl++; }
       else if (st === W_LEARNED) {
         if (!dueAt.has(idx) && now >= dueDay(last, RETENTION_DAYS)) d.wd++;  // "ask tomorrow"
@@ -706,10 +705,6 @@
     d.rm = masteredToday(balls.recognition);
     d.wm = masteredToday(balls.production);
     d.ww = weeklyToday(balls.production);
-    // Candidates that can be started now = free slots under the write cap, where
-    // the current load counts every bucket that's due right now (acquiredCount).
-    var room = Math.max(0, poolTarget(false) - balls.production.acquiredCount());
-    d.wl += Math.min(rMastered, room);
     return d;
   }
 
