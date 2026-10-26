@@ -79,10 +79,13 @@ gap (`ACQUIRE_GAP_MS`, fixed at **30 min**). Priority:
 ### Daily smoothing of the monthly & weekly buckets
 To avoid big day-to-day spikes, the **monthly (mastered)** and **weekly** buckets
 are rate-limited per local day; the overflow rolls to following days:
-- **Monthly:** daily cap = `ceil(count / 28)`, where `count` = mastered words due
-  within the next 28 days (through today+27). Applies to both reading and writing
-  mastered refreshers.
-- **Weekly (writing only):** daily cap = `ceil(bucketSize / 7)`.
+- **Monthly:** daily cap = `ceil(count / (4 * quizDaysPerWeek))`, where `count` =
+  mastered words due within the next 28 days (through today+27). Applies to both
+  reading and writing mastered refreshers.
+- **Weekly (writing only):** daily cap = `ceil(bucketSize / quizDaysPerWeek)`.
+- `quizDaysPerWeek` (Settings, default **4**, range 1–7) is how many days a week
+  you plan to quiz; the caps spread each bucket over that many quiz days (the
+  monthly bucket over ~4 weeks of them). Raising it lowers the per-day caps.
 - `dailyQuiz` (persisted, reset at the first interaction of a new local day)
   tracks how many words from each smoothed bucket were quizzed today; the round
   machinery stops offering that bucket once the cap is reached. The HUD due number
@@ -161,7 +164,7 @@ Everything is stored in `localStorage` under `jukugo.v1` (schema v3; the pre-ren
   "dailyQuiz": { "date": "2026-08-03", "rm": 2, "wm": 4, "ww": 6 },
   "unlockedLevel": 3,
   "progress": { "dailyStages": { "2026-08-03": { "rl":8,"rd":20,"rm":40,"wd":12,"wm":5 } } },
-  "settings": { "showFinnish": true, "poolTargetRead": 8, "poolTargetWrite": 8 }
+  "settings": { "showFinnish": true, "poolTargetRead": 8, "poolTargetWrite": 8, "quizDaysPerWeek": 4 }
 }
 ```
 
@@ -169,7 +172,8 @@ Everything is stored in `localStorage` under `jukugo.v1` (schema v3; the pre-ren
   into a pool it is (re)set to the presentation time; `0`/absent means
   "not yet quizzed"; the reading seed (一) uses `-1` to sort first.
 - Old saves migrate: a single `poolTarget` → `poolTargetRead`/`poolTargetWrite`;
-  the obsolete `acquireGapHours` setting is dropped (spacing gap is fixed at 30 min).
+  missing `quizDaysPerWeek` → default 4; the obsolete `acquireGapHours` setting is
+  dropped (spacing gap is fixed at 30 min).
 - On boot the app requests `navigator.storage.persist()` to reduce eviction.
 
 ## 11. Backup & restore

@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-10-23.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-10-26.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -29,6 +29,15 @@
     var n = (reading ? settings.poolTargetRead : settings.poolTargetWrite) | 0;
     if (!n) n = POOL_TARGET_DEFAULT;
     return Math.max(POOL_MIN, Math.min(POOL_MAX, n));
+  }
+  // How many days per week you actually quiz (settings.quizDaysPerWeek). The daily
+  // smoothing caps spread each bucket over this many quiz days: the weekly bucket
+  // over N days, the monthly (mastered) bucket over 4*N days (~4 weeks of them).
+  var QUIZ_DAYS_DEFAULT = 4, QUIZ_DAYS_MIN = 1, QUIZ_DAYS_MAX = 7;
+  function quizDaysPerWeek() {
+    var n = settings.quizDaysPerWeek | 0;
+    if (!n) n = QUIZ_DAYS_DEFAULT;
+    return Math.max(QUIZ_DAYS_MIN, Math.min(QUIZ_DAYS_MAX, n));
   }
   // Minimum spacing before a learning word is shown again: a word not seen for
   // this long is "due" and reviewed before any new word. Fixed at 30 minutes.
@@ -399,21 +408,22 @@
   function masteredDueAt(ball, i) {
     return dueAt.has(i) ? dayStart(dueAt.get(i)) : dueDay(ball.last.get(i) || 0, MASTERED_DAYS);
   }
-  // Monthly cap: words due within the next 28 days (through today+27), spread
-  // evenly => ceil(count / 28) per day.
+  // Monthly cap: words due within the next 28 days (through today+27), spread over
+  // the ~4 weeks of quiz days => ceil(count / (4 * quizDaysPerWeek)) per quiz day.
   function masteredDailyLimit(ball) {
     var top = ball.S.MASTERED, horizon = dueDay(Date.now(), 28), count = 0;
     ball.mastered.forEach(function (i) {
       if (WORDS[i]._excluded || states.get(i) !== top) return;
       if (masteredDueAt(ball, i) < horizon) count++;
     });
-    return Math.ceil(count / 28);
+    return Math.ceil(count / (4 * quizDaysPerWeek()));
   }
-  // Weekly cap: the whole weekly bucket spread over 7 days => ceil(size / 7).
+  // Weekly cap: the whole weekly bucket spread over a week of quiz days =>
+  // ceil(size / quizDaysPerWeek).
   function weeklyDailyLimit(ball) {
     var count = 0;
     ball.learned.forEach(function (i) { if (dueAt.has(i) && !WORDS[i]._excluded) count++; });
-    return Math.ceil(count / 7);
+    return Math.ceil(count / quizDaysPerWeek());
   }
   // Mastered words due right now (this phase's plateau).
   function masteredDueNow(ball) {
@@ -451,7 +461,7 @@
   // ----------------------------------------------------------- persistence
   var KEY = "jukugo.v1";
   var LEGACY_KEY = "ballGame.v1";   // pre-rename key; read once if new key is absent
-  var settings = { showFinnish: true, romaji: false, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT };
+  var settings = { showFinnish: true, romaji: false, poolTargetRead: POOL_TARGET_DEFAULT, poolTargetWrite: POOL_TARGET_DEFAULT, quizDaysPerWeek: QUIZ_DAYS_DEFAULT };
   // Single progress structure: end-of-day snapshot of each stage's count.
   var progress = { dailyStages: {} };   // { 'YYYY-MM-DD': {rl,rd,rm,wl,wd,wm} }
   var unlockedLevel = 1;                 // reading curriculum level (writing has none)
@@ -464,6 +474,7 @@
     if (settings.poolTargetWrite == null)
       settings.poolTargetWrite = settings.poolTarget || POOL_TARGET_DEFAULT;
     if (settings.romaji == null) settings.romaji = false;
+    if (settings.quizDaysPerWeek == null) settings.quizDaysPerWeek = QUIZ_DAYS_DEFAULT;
     delete settings.poolTarget;
     delete settings.acquireGapHours;   // spacing gap is now fixed at 30 min
   }
@@ -1389,6 +1400,12 @@
       "plus any due \u201cask next week\u201d and mastered reviews. Set separately for reading and writing. " +
       "A learning word is shown again after 30 minutes; new words are introduced only when you're below " +
       "the max. Lowering the max never drops words already started \u2014 it just pauses new intake."));
+    view.appendChild(quizDaysRow());
+    view.appendChild(h("div", "sethint",
+      "How many days per week you plan to quiz (" + QUIZ_DAYS_MIN + "\u2013" + QUIZ_DAYS_MAX +
+      "). The daily caps for the \u201cask next week\u201d and mastered buckets spread their load over " +
+      "this many quiz days (weekly bucket \u00f7 this number, mastered bucket \u00f7 four times this " +
+      "number), so a review session fits the days you actually study."));
 
     // --- settings: OpenAI key/model for the "Get example sentence" button
     view.appendChild(h("h3", null, "Example sentences (OpenAI)"));
@@ -1523,6 +1540,26 @@
     settings[key] = n;
     // Lowering the cap never drops words already in progress; it only throttles
     // the intake of new words until the active count falls back below the cap.
+    save();
+    render();
+  }
+  function quizDaysRow() {
+    var row = h("div", "setrow");
+    row.appendChild(h("span", "setlbl", "Quizz days per week"));
+    var ctl = h("div", "stepper");
+    var minus = h("button", "stepbtn", "\u2212");
+    var val = h("span", "setval", "" + quizDaysPerWeek());
+    var plus = h("button", "stepbtn", "+");
+    minus.onclick = function () { setQuizDays(quizDaysPerWeek() - 1); };
+    plus.onclick = function () { setQuizDays(quizDaysPerWeek() + 1); };
+    ctl.appendChild(minus); ctl.appendChild(val); ctl.appendChild(plus);
+    row.appendChild(ctl);
+    return row;
+  }
+  function setQuizDays(n) {
+    n = Math.max(QUIZ_DAYS_MIN, Math.min(QUIZ_DAYS_MAX, n | 0));
+    if (n === quizDaysPerWeek()) return;
+    settings.quizDaysPerWeek = n;
     save();
     render();
   }
