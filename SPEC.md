@@ -82,13 +82,18 @@ gap (`ACQUIRE_GAP_MS`, fixed at **30 min**). Priority:
 ### Daily smoothing of the monthly & weekly buckets
 To avoid big day-to-day spikes, the **monthly (mastered)** and **weekly** buckets
 are rate-limited per local day; the overflow rolls to following days:
-- **Monthly:** daily cap = `ceil(count / (4 * quizDaysPerWeek))`, where `count` =
-  mastered words due within the next 28 days (through today+27). Applies to both
-  reading and writing mastered refreshers.
+- **Mastered refresher:** the plateau period is phase-specific — **writing cycles
+  monthly** (`MASTERED_DAYS` = 28) and **reading cycles weekly**
+  (`READ_MASTERED_DAYS` = 7), see `masteredDays(ball)`. The daily cap spreads the
+  words due within that period over its quiz days:
+  `ceil(count / ((period/7) * quizDaysPerWeek))` where `count` = mastered words due
+  within the next `period` days. So writing = `ceil(count / (4 * quizDaysPerWeek))`
+  and reading = `ceil(count / quizDaysPerWeek)`.
 - **Weekly (writing only):** daily cap = `ceil(bucketSize / quizDaysPerWeek)`.
 - `quizDaysPerWeek` (Settings, default **4**, range 1–7) is how many days a week
   you plan to quiz; the caps spread each bucket over that many quiz days (the
-  monthly bucket over ~4 weeks of them). Raising it lowers the per-day caps.
+  monthly/writing-mastered bucket over ~4 weeks of them, the weekly/reading-mastered
+  buckets over one week). Raising it lowers the per-day caps.
 - `dailyQuiz` (persisted, reset at the first interaction of a new local day)
   tracks how many words from each smoothed bucket were quizzed today; the round
   machinery stops offering that bucket once the cap is reached. The HUD due number
