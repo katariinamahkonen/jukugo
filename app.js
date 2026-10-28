@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-10-26.1";   // bump on each change; shown in UI + console
+  var VERSION = "2026-10-28.1";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -274,14 +274,16 @@
 
   // The active load counted against the pool cap = words that currently need
   // attention: the whole learning bucket, the whole "ask tomorrow" bucket, PLUS
-  // today's SMOOTHED share of the weekly and mastered buckets (not the full due
-  // backlog — only the portion actually scheduled for today). This keeps new-word
-  // intake gated by the real daily workload, not by a large deferred backlog.
+  // today's SMOOTHED daily quota for the weekly and mastered buckets. We use the
+  // per-day quota (not just what happens to be due this instant) so a large backlog
+  // building up over the next ~4 weeks reserves capacity TODAY and throttles
+  // new-word intake smoothly — avoiding bursts of new words followed by a wall of
+  // reviews once the backlog comes due.
   Ball.prototype.acquiredCount = function () {
     var n = this.learning.size;
     this.learned.forEach(function (i) { if (!dueAt.has(i)) n++; });   // "ask tomorrow"
-    n += weeklyToday(this);                                           // today's weekly share
-    n += masteredToday(this);                                         // today's mastered share
+    n += weeklyDailyLimit(this);                                      // today's smoothed weekly quota
+    n += masteredDailyLimit(this);                                    // today's smoothed mastered quota
     return n;
   };
 

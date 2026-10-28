@@ -44,10 +44,13 @@ have actually been quizzed at least once**. There is no pre-filled buffer of
 unquizzed words: a word enters the pool only at the moment it is first presented.
 
 - `poolTargetRead` / `poolTargetWrite` (Settings) cap the active load per phase
-  (min 4, max 200, default 8). The cap counts every bucket that is **due right
-  now** (`Ball.acquiredCount`): the whole **learning** bucket, the whole **"ask
-  tomorrow"** bucket, plus any **"ask next week"** and **mastered** words that are
-  currently due. Dormant weekly/mastered words (not yet due) don't count. New
+  (min 4, max 200, default 8). The cap counts (`Ball.acquiredCount`): the whole
+  **learning** bucket, the whole **"ask tomorrow"** bucket, plus the **smoothed
+  daily quota** of the **weekly** and **mastered** buckets (`weeklyDailyLimit` /
+  `masteredDailyLimit`). Using the per-day quota — not just what is due this instant —
+  means a large backlog building up over the next ~4 weeks reserves capacity *today*
+  and throttles new-word intake smoothly, avoiding bursts of new words followed by a
+  wall of reviews. "Ask next week" (deferred) words don't count. New
   words are introduced only while this combined count is below the cap.
 - **Lowering the cap** never drops words already started — it only pauses the
   intake of new words until the combined count falls back below the cap.
@@ -68,8 +71,8 @@ gap (`ACQUIRE_GAP_MS`, fixed at **30 min**). Priority:
 
 1. **Re-drill the most-overdue due learning word** — before introducing anything
    new. (The seed 一 counts as due immediately on first run.)
-2. **Else, if below the cap** (learning + "ask tomorrow" + today's smoothed share
-   of due weekly + due mastered, see `acquiredCount`)**, introduce a NEW word.**
+2. **Else, if below the cap** (learning + "ask tomorrow" + smoothed daily quota of
+   weekly + mastered, see `acquiredCount`)**, introduce a NEW word.**
    - Reading: chosen by the priority picker (§6); enters `r_learning` immediately.
    - Writing: the next writing candidate (oldest-mastered `r_mastered` word),
      presented as a `new word` but left in `r_mastered` until its first write grade.
