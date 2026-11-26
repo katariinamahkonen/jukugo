@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2026-11-26.2";   // bump on each change; shown in UI + console
+  var VERSION = "2026-11-26.3";   // bump on each change; shown in UI + console
   var D = window.__JUKUGO_DATA__;
   if (!D) { document.body.innerHTML = "<p style='padding:2rem'>data.js failed to load.</p>"; return; }
 
@@ -51,8 +51,12 @@
   // up first thing in the morning (see dueDay / dayStart helpers).
   var RETENTION_DAYS = 1;          // "ask next day": due the next calendar day
   var WEEK_DAYS = 7;               // "ask next week"
-  var MASTERED_DAYS = 28;          // mastered refresher: ~4 weeks (monthly), both phases
+  var MASTERED_DAYS = 28;          // write mastered refresher: ~4 weeks (monthly)
+  var READ_MASTERED_DAYS = 7;      // read mastered refresher: 1 week
   var MASTERED_REPEAT_DAYS = 56;   // re-confirmed mastered word: ~2 months
+  // Mastered refresher period for a phase: reading plateau cycles weekly, writing
+  // plateau cycles monthly.
+  function masteredDays(ball) { return ball.reading ? READ_MASTERED_DAYS : MASTERED_DAYS; }
   // Words with BCCWJ rank worse than this (or unranked) are "rare": they are
   // deferred in selection (§8 Phase C) until all common words of the currently
   // unlocked kanji are done, so rare idioms don't appear early. [decision]
@@ -378,8 +382,8 @@
   // A random MASTERED word that is due for its refresher. Only the ball's top
   // plateau (r_mastered for reading, w_mastered for writing); words that have
   // moved on into the writing path are handled there, not re-quizzed as read-
-  // mastered. Default cooldown is ~4 weeks (monthly), but a word re-confirmed from
-  // the mastered set carries an explicit dueAt (~2 months).
+  // mastered. Default cooldown is 1 week (reading) / ~4 weeks (writing), but a word
+  // re-confirmed from the mastered set carries an explicit dueAt (~2 months).
   Ball.prototype.pickMastered = function (exclude) {
     var top = this.S.MASTERED, pool = [], now = Date.now(), self = this;
     this.mastered.forEach(function (i) {
@@ -408,17 +412,20 @@
   // A mastered word's next-due timestamp (explicit dueAt override, else the
   // default ~4-week refresher from its last review).
   function masteredDueAt(ball, i) {
-    return dueAt.has(i) ? dayStart(dueAt.get(i)) : dueDay(ball.last.get(i) || 0, MASTERED_DAYS);
+    return dueAt.has(i) ? dayStart(dueAt.get(i)) : dueDay(ball.last.get(i) || 0, masteredDays(ball));
   }
-  // Monthly cap: mastered words due within the next 28 days (today .. today+28),
-  // spread over the ~4 weeks of quiz days => ceil(count / (4 * quizDaysPerWeek)).
+  // Mastered cap: words due within the next refresher period (today .. today+period),
+  // spread over the quiz days of that period. Writing: 28 days over 4 weeks of quiz
+  // days => ceil(count / (4 * quizDaysPerWeek)). Reading: 7 days over one week of
+  // quiz days => ceil(count / quizDaysPerWeek). Divisor = (period/7) * quizDaysPerWeek.
   function masteredDailyLimit(ball) {
-    var top = ball.S.MASTERED, horizon = dueDay(Date.now(), MASTERED_DAYS), count = 0;
+    var top = ball.S.MASTERED, period = masteredDays(ball);
+    var horizon = dueDay(Date.now(), period), count = 0;
     ball.mastered.forEach(function (i) {
       if (WORDS[i]._excluded || states.get(i) !== top) return;
       if (masteredDueAt(ball, i) < horizon) count++;
     });
-    return Math.ceil(count / (4 * quizDaysPerWeek()));
+    return Math.ceil(count / ((period / 7) * quizDaysPerWeek()));
   }
   // Weekly cap: the whole weekly bucket spread over a week of quiz days =>
   // ceil(size / quizDaysPerWeek).
